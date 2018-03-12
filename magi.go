@@ -17,8 +17,6 @@ import (
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
-
 	app := cli.NewApp()
 	app.Name = "magi"
 	app.Usage = "API for handling physical Donations"
@@ -32,9 +30,19 @@ func main() {
 		cli.BoolFlag{
 			Name: "local, l",
 		},
+		cli.BoolFlag{
+			Name: "debug, d",
+		},
+		cli.BoolFlag{
+			Name: "info, i",
+		},
 	}
 
-	app.Action = func(c *cli.Context) error {
+	app.Action = func(
+		c *cli.Context,
+	) error {
+		SetLogLevel(c)
+
 		viper.SetConfigName(c.String("config"))
 		viper.AddConfigPath(".")
 		err := viper.ReadInConfig()
@@ -49,6 +57,28 @@ func main() {
 
 	err := app.Run(os.Args)
 	toolbox.FatalError("unable to launch the app", err)
+}
+
+// SetLogLevel
+//
+// Sets the current log level based on terminal parameters
+// debug -> DebugLevel
+// info -> InfoLevel
+// default -> ErrorLevel
+func SetLogLevel(
+	c *cli.Context,
+) {
+	if c.Bool("debug") {
+		log.SetLevel(log.DebugLevel)
+		log.Debug("Log level set to debug")
+		return
+	}
+	if c.Bool("info") {
+		log.SetLevel(log.InfoLevel)
+		log.Info("Log level set to info")
+		return
+	}
+	log.SetLevel(log.ErrorLevel)
 }
 
 func BuildAddress(
