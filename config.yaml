@@ -1,0 +1,11 @@
+{ 
+  server: {
+    port: 8080,
+    readTimeout: 3,
+    writeTimeout: 3,
+    maxHeaderBytes: 1000
+  },
+  database: {
+    driver: "sqlite3",
+  }
+}
