@@ -5,7 +5,16 @@
     writeTimeout: 3,
     maxHeaderBytes: 1000
   },
+  auth: {
+    private: "6E232E81CAB6D89C12C8975675ECE114199ACBFDF093AF260B92A1D7EE881F6A"
+  },
   database: {
-    driver: "sqlite3",
-  }
+    config: {
+      driver: "sqlite3",
+      file: "local.db"
+    },
+    schema : {
+      
+    }
+  },
 }
