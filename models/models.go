@@ -8,9 +8,9 @@ import (
 
 func AutoMigrate() {
 	res.DB.AutoMigrate(
-		&User{},
-		&Group{},
-		&Resource{},
+		// &User{},
+		// &Group{},
+		// &Resource{},
 		&Request{},
 		&Agency{},
 		&Gift{},
@@ -26,34 +26,6 @@ type BaseModel struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time `sql:"index"`
-}
-
-type User struct {
-	BaseModel
-
-	UserName string `gorm:"size:255;unique"`
-	Password string `gorm:"size:64"`
-
-	Level int
-
-	Groups []Group `gorm:"many2many:user_groups"`
-}
-
-type Group struct {
-	BaseModel
-
-	Name string
-}
-
-type Resource struct {
-	BaseModel
-
-	Level    int
-	Category int
-	Resource string
-	Action   string
-
-	Groups []Group `gorm:"many2many:resource_groups"`
 }
 
 type Request struct {
@@ -88,7 +60,7 @@ type Request_HTTP struct {
 	BaseModel
 
 	Endpoint Endpoint
-	User     User
+	// User     auth.User
 }
 
 type Response_HTTP struct {
