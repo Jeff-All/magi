@@ -8,9 +8,6 @@ import (
 
 func AutoMigrate() {
 	res.DB.AutoMigrate(
-		// &User{},
-		// &Group{},
-		// &Resource{},
 		&Request{},
 		&Agency{},
 		&Gift{},
@@ -60,7 +57,6 @@ type Request_HTTP struct {
 	BaseModel
 
 	Endpoint Endpoint
-	// User     auth.User
 }
 
 type Response_HTTP struct {

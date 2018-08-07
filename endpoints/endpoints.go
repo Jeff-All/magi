@@ -3,44 +3,38 @@ package endpoints
 import (
 	"encoding/json"
 	"io/ioutil"
-	"github.com/Jeff-All/magi/auth"
+	"net/http"
+
 	"github.com/Jeff-All/magi/errors"
 	"github.com/Jeff-All/magi/models"
 	"github.com/Jeff-All/magi/responses"
-	"net/http"
 
 	res "github.com/Jeff-All/magi/resources"
 
 	log "github.com/sirupsen/logrus"
 )
 
+// Agency
+// CRUD - Admin
+
+// Gifts
+// 	Create --- Admin
+// 	Retrieve - All
+// 	Update --- Admin
+// 	Delete --- Admin
+//
+
+// Tags
+// 	Create --- Admin
+//	Retrieve - All
+//	Update --- Admin
+// 	Delete --- Admin
+
 func PutGift(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	log.Debugf("/gifts PUT")
-
-	u, err := auth.AuthRequest(r)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"Error":    err.Error(),
-			"Endpoint": "/gifts",
-			"Action":   "PUT",
-		}).Error("Error Authing User")
-		response := responses.Error{
-			Code:  errors.Default,
-			Error: err.Error(),
-		}
-
-		responseString, _ := json.Marshal(response)
-
-		w.Write(responseString)
-		return
-	} else if u == nil {
-		log.Debug("Failed Auth")
-		w.Write([]byte("Invalid User"))
-		return
-	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -65,20 +59,20 @@ func PutGift(
 	json.Unmarshal(body, &gift)
 	gift.ID = 0
 
-	var errDB = res.DB.Create(&gift)
+	err = res.DB.Create(&gift).Error
 	jsonString, _ := json.Marshal(gift)
-	if errDB.Error != nil {
+	if err != nil {
 		log.WithFields(log.Fields{
 			"Endpoint": "/gifts",
 			"Action":   "PUT",
-			"Error":    errDB.Error,
+			"Error":    err.Error(),
 			"Gift":     string(jsonString),
 			"Table":    "gifts",
 		}).Error("Error Inserting Into Table")
 
 		response := responses.Error{
 			Code:  errors.Default,
-			Error: errDB.Error.Error(),
+			Error: err.Error(),
 		}
 
 		responseString, _ := json.Marshal(response)

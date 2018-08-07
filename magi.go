@@ -345,29 +345,29 @@ func AddUser(c *cli.Context) error {
 	}
 
 	// Add User
-	newUserName, _ := ReadLine("New Username")
-	newPassword, _ := ReadPassword()
-	if confirmed, err := ConfirmPassword(password); !confirmed || err != nil {
-		log.Info("Passwords did not match")
-		return err
-	}
-	level, _ := ReadInt("Level")
+	// newUserName, _ := ReadLine("New Username")
+	// newPassword, _ := ReadPassword()
+	// if confirmed, err := ConfirmPassword(password); !confirmed || err != nil {
+	// 	log.Info("Passwords did not match")
+	// 	return err
+	// }
+	// level, _ := ReadInt("Level")
 
-	newUser, err := user.AddUser(
-		newUserName,
-		newPassword,
-		auth.Level(level),
-	)
+	// newUser, err := user.AddUser(
+	// 	newUserName,
+	// 	newPassword,
+	// 	auth.Level(level),
+	// )
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Error": err,
 		}).Error("Error adding user")
 		return err
 	}
-	if newUser == nil {
-		log.Info("User wasn't created")
-		return nil
-	}
+	// if newUser == nil {
+	// 	log.Info("User wasn't created")
+	// 	return nil
+	// }
 	log.Info("User successfuly created")
 	return nil
 }
