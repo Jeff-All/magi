@@ -3,8 +3,11 @@ package models
 import (
 	"time"
 
+	"github.com/Jeff-All/magi/data"
 	res "github.com/Jeff-All/magi/resources"
 )
+
+var DB data.Data
 
 func AutoMigrate() {
 	res.DB.AutoMigrate(
@@ -20,15 +23,9 @@ func AutoMigrate() {
 
 type BaseModel struct {
 	ID        uint64 `gorm:"primary_key;AUTO_INCREMENT"`
-	CreatedAt time.Time
+	CreatedAt *time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time `sql:"index"`
-}
-
-type Request struct {
-	BaseModel
-
-	Agency Agency
 }
 
 type Agency struct {

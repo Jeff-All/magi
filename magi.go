@@ -10,7 +10,7 @@ import (
 	"toolbox"
 
 	"github.com/Jeff-All/magi/auth"
-	"github.com/Jeff-All/magi/endpoints"
+	"github.com/Jeff-All/magi/handlers"
 	res "github.com/Jeff-All/magi/resources"
 
 	"github.com/sirupsen/logrus"
@@ -29,6 +29,8 @@ import (
 
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"golang.org/x/crypto/ssh/terminal"
+
+	requests "github.com/Jeff-All/magi/endpoints/request"
 )
 
 func main() {
@@ -191,7 +193,7 @@ func ConfigureRoutes(
 		log.Debugf("'/gifts' GET")
 	}).Methods("GET")
 
-	r.HandleFunc("/gifts", endpoints.PutGift).Methods("PUT")
+	r.HandleFunc("requests", handlers.HandleError(requests.Request.PUT).ServeHTTP).Methods("PUT")
 }
 
 func ConnectDatabase() error {

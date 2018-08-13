@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/Jeff-All/magi/errors"
 	"github.com/Jeff-All/magi/models"
 	"github.com/Jeff-All/magi/responses"
 
@@ -45,7 +44,7 @@ func PutGift(
 		}).Error("Error Reading Body")
 
 		response := responses.Error{
-			Code:  errors.Default,
+			// Code:  errors.Default,
 			Error: err.Error(),
 		}
 
@@ -71,7 +70,7 @@ func PutGift(
 		}).Error("Error Inserting Into Table")
 
 		response := responses.Error{
-			Code:  errors.Default,
+			// Code:  errors.Default,
 			Error: err.Error(),
 		}
 
