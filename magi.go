@@ -9,8 +9,8 @@ import (
 	"time"
 	"toolbox"
 
+	"github.com/Jeff-All/magi/middleware"
 	"github.com/Jeff-All/magi/auth"
-	"github.com/Jeff-All/magi/handlers"
 	res "github.com/Jeff-All/magi/resources"
 
 	"github.com/sirupsen/logrus"
@@ -193,7 +193,7 @@ func ConfigureRoutes(
 ) {
 	log.Debugf("ConfigureRoutes")
 
-	r.HandleFunc("/requests", handlers.HandleError(requests.Request.PUT).ServeHTTP).Methods("PUT")
+	r.HandleFunc("/requests", middleware.HandleError("/requests", requests.Request.PUT).ServeHTTP).Methods("PUT")
 }
 
 func ConnectDatabase() error {
