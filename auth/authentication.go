@@ -30,7 +30,7 @@ func BasicAuth(
 	pw string,
 ) (*User, error) {
 	var user User
-	err := res.DB.Where("user_name = ?", un).First(&user).Error
+	err := res.DB.Where("user_name = ?", un).First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Username": un,
@@ -96,7 +96,7 @@ func AddRootUser(pw string) (*User, error) {
 	}
 	// Check if Users has a root
 	var user User
-	err := res.DB.Where("user_name = ?", "root").First(&user).Error
+	err := res.DB.Where("user_name = ?", "root").First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Error": err,
@@ -114,7 +114,7 @@ func AddRootUser(pw string) (*User, error) {
 		Level:    int(Root),
 	}
 
-	err = res.DB.Create(&rootUser).Error
+	err = res.DB.Create(&rootUser).GetError()
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Error": err,

@@ -27,6 +27,6 @@ func CreateResource(
 	if ok, err := User.Authorize("auth", "resources", "create"); !ok || err != nil {
 		return nil, err
 	}
-	err = res.DB.Create(Resource).Error
+	err = res.DB.Create(Resource).GetError()
 	return Resource, err
 }

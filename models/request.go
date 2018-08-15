@@ -15,7 +15,7 @@ type _Requests struct{}
 type Request struct {
 	BaseModel
 
-	Agency Agency
+	Agency *Agency
 }
 
 func (requests _Requests) Create(request *Request) error {
@@ -25,5 +25,9 @@ func (requests _Requests) Create(request *Request) error {
 		return fmt.Errorf("Request was already created")
 	}
 
-	return DB.Create(request).GetError()
+	if request == nil {
+		return fmt.Errorf("request was nil")
+	}
+	err := DB.Create(request)
+	return err.GetError()
 }

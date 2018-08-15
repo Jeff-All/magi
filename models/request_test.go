@@ -48,7 +48,7 @@ func TestCreateRequest(
 
 			request := models.Request{
 				BaseModel: models.BaseModel{ID: 100},
-				Agency:    models.Agency{},
+				Agency:    &models.Agency{},
 			}
 
 			response_error := models.Requests.Create(&request)
@@ -71,7 +71,7 @@ func TestCreateRequest(
 
 			request := models.Request{
 				BaseModel: models.BaseModel{ID: 100},
-				Agency:    models.Agency{},
+				Agency:    &models.Agency{},
 			}
 
 			response_error := models.Requests.Create(&request)

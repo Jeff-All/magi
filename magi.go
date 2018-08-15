@@ -30,6 +30,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"golang.org/x/crypto/ssh/terminal"
 
+	data "github.com/Jeff-All/magi/data"
 	requests "github.com/Jeff-All/magi/endpoints/request"
 )
 
@@ -104,10 +105,15 @@ func Run(c *cli.Context) error {
 	log.Printf("Starting Application")
 	Common(c)
 	ConnectDatabase()
+	Bind()
 	defer res.DB.Close()
 	LaunchServer(c.Bool("local"))
 
 	return nil
+}
+
+func Bind() {
+	models.DB = res.DB
 }
 
 // SetLogLevel
@@ -186,22 +192,17 @@ func ConfigureRoutes(
 	r *mux.Router,
 ) {
 	log.Debugf("ConfigureRoutes")
-	r.HandleFunc("/gifts", func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-		log.Debugf("'/gifts' GET")
-	}).Methods("GET")
 
-	r.HandleFunc("requests", handlers.HandleError(requests.Request.PUT).ServeHTTP).Methods("PUT")
+	r.HandleFunc("/requests", handlers.HandleError(requests.Request.PUT).ServeHTTP).Methods("PUT")
 }
 
 func ConnectDatabase() error {
-	var err error
-	res.DB, err = gorm.Open(
+	db, err := gorm.Open(
 		viper.GetString("database.config.driver"),
 		viper.GetString("database.config.file"),
 	)
+
+	res.DB = &data.Gorm{DB: db}
 
 	if err != nil {
 		log.WithFields(

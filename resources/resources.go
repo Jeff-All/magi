@@ -1,8 +1,7 @@
 package resources
 
 import (
-	"github.com/jinzhu/gorm"
+	"github.com/Jeff-All/magi/data"
 )
 
-// var DB *sql.DB
-var DB *gorm.DB
+var DB data.Data

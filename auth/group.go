@@ -28,7 +28,7 @@ func CreateGroup(
 		return nil, err
 	}
 	var group *Group
-	err := res.DB.Create(group).Error
+	err := res.DB.Create(group).GetError()
 	return group, err
 }
 
@@ -43,7 +43,7 @@ func ReadGroup(
 		return nil, err
 	}
 	var group *Group
-	err := res.DB.Where("name = ?", Name).First(group).Error
+	err := res.DB.Where("name = ?", Name).First(group).GetError()
 	return group, err
 }
 
@@ -56,7 +56,7 @@ func (g *Group) Delete(
 	if ok, err := User.Authorize("groups", g.Name, "delete"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Delete(g).Error
+	err := res.DB.Delete(g).GetError()
 	return err == nil, err
 }
 
@@ -69,7 +69,7 @@ func (g *Group) Update(
 	if ok, err := User.Authorize("groups", g.Name, "update"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Delete(g).Error
+	err := res.DB.Delete(g).GetError()
 	return err == nil, err
 }
 
@@ -84,7 +84,7 @@ func (g *Group) AddUser(
 	if ok, err := User.Authorize("groups", g.Name, "add_action"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Model(g).Association("Users").Append(toAdd).Error
+	err := res.DB.Model(g).Association("Users").Append(toAdd).GetError()
 	return err == nil, err
 }
 
@@ -98,7 +98,7 @@ func (g *Group) RemoveUser(
 	if ok, err := User.Authorize("groups", g.Name, "add_action"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Model(g).Association("Users").Append(toRemove).Error
+	err := res.DB.Model(g).Association("Users").Append(toRemove).GetError()
 	return err == nil, err
 }
 
@@ -112,7 +112,7 @@ func (g *Group) AddAction(
 	if ok, err := User.Authorize("groups", g.Name, "add_action"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Model(g).Association("Actions").Append(Action).Error
+	err := res.DB.Model(g).Association("Actions").Append(Action).GetError()
 	return err == nil, err
 }
 
@@ -126,6 +126,6 @@ func (g *Group) RemoveAction(
 	if ok, err := User.Authorize("groups", g.Name, "remove_action"); !ok || err != nil {
 		return false, err
 	}
-	err := res.DB.Model(g).Association("Actions").Delete(&Action).Error
+	err := res.DB.Model(g).Association("Actions").Delete(&Action).GetError()
 	return err == nil, err
 }
