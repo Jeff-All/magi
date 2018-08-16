@@ -9,9 +9,13 @@ import (
 	"time"
 	"toolbox"
 
-	"github.com/Jeff-All/magi/middleware"
+	"github.com/casbin/casbin"
+	"github.com/gorilla/sessions"
+
 	"github.com/Jeff-All/magi/auth"
+	"github.com/Jeff-All/magi/middleware"
 	res "github.com/Jeff-All/magi/resources"
+	"github.com/Jeff-All/magi/session"
 
 	"github.com/sirupsen/logrus"
 
@@ -31,7 +35,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	data "github.com/Jeff-All/magi/data"
-	requests "github.com/Jeff-All/magi/endpoints/request"
+
+	"github.com/Jeff-All/magi/endpoints/request"
 )
 
 func main() {
@@ -105,8 +110,9 @@ func Run(c *cli.Context) error {
 	log.Printf("Starting Application")
 	Common(c)
 	ConnectDatabase()
-	Bind()
 	defer res.DB.Close()
+	Bind()
+
 	LaunchServer(c.Bool("local"))
 
 	return nil
@@ -114,6 +120,7 @@ func Run(c *cli.Context) error {
 
 func Bind() {
 	models.DB = res.DB
+	auth.DB = res.DB
 }
 
 // SetLogLevel
@@ -179,13 +186,31 @@ func LaunchServer(
 ) {
 	r := mux.NewRouter()
 
+	BuildSessionManager()
+	BuildEnforcer()
 	ConfigureRoutes(r)
 
 	s := BuildServer(r, local)
 
+	// auth := middleware.Authorize(res.Enforcer, res.Session)
+
 	http.Handle("/", r)
 
 	log.Fatal(s.ListenAndServe())
+}
+
+func BuildSessionManager() {
+	res.Session = &session.Manager{Store: sessions.NewCookieStore([]byte(auth.PrivateKey))}
+}
+
+func BuildEnforcer() {
+	var err error
+	res.Enforcer, err = casbin.NewEnforcerSafe("./auth_model.conf", "./policy.csv")
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Fatal("Unable to build enforcer")
+	}
 }
 
 func ConfigureRoutes(
@@ -193,7 +218,15 @@ func ConfigureRoutes(
 ) {
 	log.Debugf("ConfigureRoutes")
 
-	r.HandleFunc("/requests", middleware.HandleError("/requests", requests.Request.PUT).ServeHTTP).Methods("PUT")
+	r.HandleFunc("/requests", middleware.HandleError("/requests", middleware.Authorize(res.Enforcer, res.Session)(request.Request.PUT)).ServeHTTP).Methods("PUT")
+}
+
+func createUsers() models.Users {
+	users := models.Users{}
+	users = append(users, models.User{ID: 1, Name: "Admin", Role: "admin"})
+	users = append(users, models.User{ID: 2, Name: "Sabine", Role: "member"})
+	users = append(users, models.User{ID: 3, Name: "Sepp", Role: "member"})
+	return users
 }
 
 func ConnectDatabase() error {
@@ -244,13 +277,17 @@ func Init(c *cli.Context) error {
 		return fmt.Errorf("Cannot Init a database that already exists")
 	}
 	ConnectDatabase()
-	models.AutoMigrate()
+	Bind()
+
 	password, _ := ReadPassword()
 	if confirmed, err := ConfirmPassword(password); !confirmed || err != nil {
 		log.Info("Passwords did not match")
 		return err
 	}
-	auth.Init(password)
+
+	models.AutoMigrate()
+	auth.Init()
+	auth.AddRootUser(password)
 	return nil
 }
 
@@ -267,7 +304,8 @@ func Auth(c *cli.Context) error {
 		}).Error("Error reading password")
 	}
 	ConnectDatabase()
-	user, err := auth.BasicAuth(
+	Bind()
+	user, err := auth.BasicAuthentication(
 		username,
 		password,
 	)
@@ -331,7 +369,7 @@ func AddUser(c *cli.Context) error {
 			"Error": err,
 		}).Error("Error reading password")
 	}
-	user, err := auth.BasicAuth(
+	user, err := auth.BasicAuthentication(
 		username,
 		password,
 	)

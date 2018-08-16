@@ -15,12 +15,10 @@ type _Requests struct{}
 type Request struct {
 	BaseModel
 
-	Agency *Agency
+	Agency *Agency `json:"-"`
 }
 
 func (requests _Requests) Create(request *Request) error {
-	// ToDo: Access Control Check
-
 	if request.CreatedAt != nil {
 		return fmt.Errorf("Request was already created")
 	}

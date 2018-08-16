@@ -8,7 +8,8 @@ type Data interface {
 	First(interface{}) Data
 	Delete(interface{}) Data
 	Model(interface{}) Data
-	Append(interface{}) Data
+	Preload(string, ...interface{}) Data
+	// Append(interface{}) Data
 	Association(string) Association
 	Close() error
 }

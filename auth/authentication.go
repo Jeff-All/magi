@@ -2,16 +2,16 @@ package auth
 
 import (
 	"crypto/sha512"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/jinzhu/gorm"
 
-	res "github.com/Jeff-All/magi/resources"
+	"github.com/Jeff-All/magi/data"
 
 	log "github.com/sirupsen/logrus"
 )
-
-var privateKey string
 
 type Level int
 
@@ -20,17 +20,30 @@ const (
 	Admin
 )
 
-func AuthRequest(r *http.Request) (*User, error) {
-	un, pw, _ := r.BasicAuth()
-	return BasicAuth(un, pw)
+func Init() error {
+	err := DB.AutoMigrate(&User{}, &Group{}).GetError()
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Error("Error Migrating Auth tables")
+		// return err
+	}
+	// _, err = AddRootUser(pw)
+
+	return err
 }
 
-func BasicAuth(
+func AuthRequest(r *http.Request) (*User, error) {
+	un, pw, _ := r.BasicAuth()
+	return BasicAuthentication(un, pw)
+}
+
+func BasicAuthentication(
 	un string,
 	pw string,
 ) (*User, error) {
 	var user User
-	err := res.DB.Where("user_name = ?", un).First(&user).GetError()
+	err := DB.Where("user_name = ?", un).Preload("Groups").First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Username": un,
@@ -39,7 +52,7 @@ func BasicAuth(
 		return nil, err
 	} else if err == gorm.ErrRecordNotFound {
 		log.Debug("Unable to find User")
-		return nil, nil
+		return nil, fmt.Errorf("Unable to find user")
 	}
 
 	pwHash := GeneratePasswordHash(pw)
@@ -48,55 +61,28 @@ func BasicAuth(
 		log.WithFields(log.Fields{
 			"Username": un,
 		}).Debug("Password Did Not Match")
-		return nil, nil
+		return nil, fmt.Errorf("Password did not match")
 	}
 
 	return &user, nil
 }
 
 func GeneratePasswordHash(pw string) string {
-	toReturn := sha512.Sum512([]byte(pw + privateKey))
+	toReturn := sha512.Sum512([]byte(pw + PrivateKey))
 	return string(toReturn[:64])
 }
 
-func Init(pw string) (*User, error) {
-	root, err := AddRootUser(pw)
-	if err != nil {
-		return nil, err
-	}
-
-	// superAdmins, err := root.AddGroup("super_admins")
-	// admins, err := root.AddGroup("admins")
-	// users, err := root.AddGroup("users")
-
-	// authResources, err = root.AddResource("auth", "resources")
-	// authActions, err = root.AddResource("auth", "actions")
-	// authGroups, err = root.AddResource("auth", "groups")
-	// authUsers, err = root.AddResource("auth", "users")
-
-	// err = authResources.AddAction("create", "read", "update", "delete")
-	// err = authActions.AddAction("create", "read", "update", "delete")
-	// err = authGroups.AddAction("create", "read", "update", "delete")
-	// err = authUsers.AddAction("create", "read", "update", "delete")
-
-	// err = superAdmins.AddAction(authResources.Actions("create", "read", "update", "delete")...)
-	// err = superAdmins.AddAction(authActions.Actions("create", "read", "update", "delete")...)
-
-	// root.AddResource(&models.Resource{
-	// 	Category: "auth",
-	// 	Resource: "",
-	// })
-
-	return root, nil
-}
-
-func AddRootUser(pw string) (*User, error) {
+func AddRootUser(
+	pw string,
+) (*User, error) {
+	log.Debug("auth.AddRootUser()")
 	if !ValidatePassword(pw) {
+		log.Info("Invalid Password")
 		return nil, nil
 	}
 	// Check if Users has a root
 	var user User
-	err := res.DB.Where("user_name = ?", "root").First(&user).GetError()
+	err := DB.Where("user_name = ?", "root").First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Error": err,
@@ -107,20 +93,62 @@ func AddRootUser(pw string) (*User, error) {
 		return nil, nil
 	}
 
+	var rootGroup Group
+	err = DB.Where("name = ?", "root").First(&rootGroup).GetError()
+	if err != nil && err != gorm.ErrRecordNotFound {
+		log.WithFields(log.Fields{
+			"Error": err,
+		}).Error("Error checking group table for Root")
+		return nil, err
+	} else if err == nil {
+		log.Error("Root group already exists")
+		return nil, nil
+	}
+
+	// testModel := models.Request{}
+
+	// err = DB.Create(&testModel).GetError()
+	// if err != nil {
+	// 	log.WithFields(log.Fields{
+	// 		"Error": err,
+	// 		// "group": string(groupstring),
+	// 	}).Error("Error Creating temp")
+	// }
+
+	rootGroup = Group{Name: "root"}
+	db, ok := DB.(*data.Gorm)
+	if !ok {
+		log.Error("Unable to convert to gorm")
+	}
+	// db, ok := data.Gorm.(DB)
+	groupstring, _ := json.Marshal(rootGroup)
+	err = db.DB.Create(&rootGroup).Error
+	if err != nil {
+		log.WithFields(log.Fields{
+			"Error": err,
+			"group": string(groupstring),
+		}).Error("Error Creating Root Group")
+	}
+
 	// Create Root entry in users table
 	rootUser := User{
 		UserName: "root",
 		Password: GeneratePasswordHash(pw),
 		Level:    int(Root),
+		Groups:   []Group{rootGroup},
 	}
 
-	err = res.DB.Create(&rootUser).GetError()
+	userstring, _ := json.Marshal(rootUser)
+	err = DB.Create(&rootUser).GetError()
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Error": err,
+			"ID":    rootUser.ID,
+			"user":  string(userstring),
 		}).Error("Error Creating Root User")
 		return nil, err
 	}
+	log.Debug("auth.AddRootUsers(): Success")
 	// Return Root User
 	return &rootUser, nil
 }

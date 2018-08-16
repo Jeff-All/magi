@@ -60,6 +60,11 @@ func (m *Mock) Append(value interface{}) Data {
 	return m
 }
 
+func (m *Mock) Preload(column string, conditions ...interface{}) Data {
+	m.Mock.Call("Preload", []interface{}{column, conditions}...)
+	return m
+}
+
 func (m *Mock) Close() error {
 	call := m.Mock.Call("Close")
 	if call.Return[0] == nil {
