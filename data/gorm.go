@@ -1,6 +1,8 @@
 package data
 
-import "github.com/jinzhu/gorm"
+import (
+	"github.com/jinzhu/gorm"
+)
 
 type Gorm struct {
 	*gorm.DB
@@ -11,9 +13,6 @@ type GormAssociation struct {
 }
 
 func (g *Gorm) Create(value interface{}) Data {
-	// g.DB = g.DB.Create(value)
-	// return g
-
 	db := g.DB.Create(value)
 	return &Gorm{DB: db}
 }
@@ -41,11 +40,11 @@ func (g *Gorm) Where(
 	return &Gorm{DB: db}
 }
 
-func (g *Gorm) First(value interface{}) Data {
-	// g.DB = g.DB.First(value)
-	// return g
-
-	db := g.DB.First(value)
+func (g *Gorm) First(
+	value interface{},
+	values ...interface{},
+) Data {
+	db := g.DB.First(value, values...)
 	return &Gorm{DB: db}
 }
 
@@ -65,6 +64,11 @@ func (g *Gorm) Model(value interface{}) Data {
 	return &Gorm{DB: db}
 }
 
+func (g *Gorm) Find(value interface{}) Data {
+	db := g.DB.Find(value)
+	return &Gorm{DB: db}
+}
+
 // func (g *Gorm) Append(value interface{}) Data {
 // 	// g.DB = g.DB.Model(value)
 // 	// return g
@@ -79,6 +83,11 @@ func (g *Gorm) Preload(column string, conditions ...interface{}) Data {
 	return &Gorm{DB: db}
 }
 
+func (g *Gorm) Related(value interface{}) Data {
+	db := g.DB.Related(value)
+	return &Gorm{DB: db}
+}
+
 func (g *Gorm) Association(value string) Association {
 	return &GormAssociation{
 		Association: g.DB.Association(value),
@@ -87,6 +96,14 @@ func (g *Gorm) Association(value string) Association {
 
 func (g *Gorm) Close() error {
 	return g.DB.Close()
+}
+
+func (g *Gorm) Offset(value int) Data {
+	return &Gorm{DB: g.DB.Offset(value)}
+}
+
+func (g *Gorm) Limit(value int) Data {
+	return &Gorm{DB: g.DB.Limit(value)}
 }
 
 // Gorm Assocciation

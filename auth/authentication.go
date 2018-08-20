@@ -10,6 +10,7 @@ import (
 
 	"github.com/Jeff-All/magi/data"
 
+	"github.com/Jeff-All/magi/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -52,7 +53,11 @@ func BasicAuthentication(
 		return nil, err
 	} else if err == gorm.ErrRecordNotFound {
 		log.Debug("Unable to find User")
-		return nil, fmt.Errorf("Unable to find user")
+		// return nil, fmt.Errorf("Unable to find user")
+		return nil, errors.CodedError{
+			Message: "Invalid Authentication",
+			HTTPCode: http.StatusUnauthorized,
+		}
 	}
 
 	pwHash := GeneratePasswordHash(pw)

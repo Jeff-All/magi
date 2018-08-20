@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/sessions"
 
 	"github.com/Jeff-All/magi/auth"
-	"github.com/Jeff-All/magi/middleware"
+	. "github.com/Jeff-All/magi/middleware"
 	res "github.com/Jeff-All/magi/resources"
 	"github.com/Jeff-All/magi/session"
 
@@ -218,7 +218,19 @@ func ConfigureRoutes(
 ) {
 	log.Debugf("ConfigureRoutes")
 
-	r.HandleFunc("/requests", middleware.HandleError("/requests", middleware.Authorize(res.Enforcer, res.Session)(request.Request.PUT)).ServeHTTP).Methods("PUT")
+	middleware := func(final ErrorHandler) func(http.ResponseWriter, *http.Request) {
+		return HandleError(Authorize(res.Enforcer, res.Session)(final)).ServeHTTP
+	}
+
+	r.HandleFunc("/requests", middleware(request.Request.PUT)).Methods("PUT")
+	r.HandleFunc("/requests", middleware(request.Request.GETPAGE)).Methods("GET")
+	r.HandleFunc("/requests/{id}", middleware(request.Request.GET)).Methods("GET")
+	r.HandleFunc("/requests/{id}", middleware(request.Request.DELETE)).Methods("DELETE")
+
+	r.HandleFunc("/requests/{id}/gifts", middleware(request.Request.PUTGift)).Methods("PUT")
+	// r.HandleFunc("/requests/{id}/gifts", middleware(request.Request.GETPAGEGift)).Methods("GET")
+	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.GET)).Methods("GET")
+	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.DELETE)).Methods("DELETE")
 }
 
 func createUsers() models.Users {

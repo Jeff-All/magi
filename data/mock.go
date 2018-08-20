@@ -40,8 +40,11 @@ func (m *Mock) Where(
 	return m
 }
 
-func (m *Mock) First(value interface{}) Data {
-	m.Mock.Call("First", value)
+func (m *Mock) First(
+	value interface{},
+	values ...interface{},
+) Data {
+	m.Mock.Call("First", value, values)
 	return m
 }
 
@@ -55,6 +58,11 @@ func (m *Mock) Model(value interface{}) Data {
 	return m
 }
 
+func (m *Mock) Find(value interface{}) Data {
+	m.Mock.Call("Find", value)
+	return m
+}
+
 func (m *Mock) Append(value interface{}) Data {
 	m.Mock.Call("Append", value)
 	return m
@@ -65,12 +73,27 @@ func (m *Mock) Preload(column string, conditions ...interface{}) Data {
 	return m
 }
 
+func (m *Mock) Related(value interface{}) Data {
+	m.Mock.Call("Related", value)
+	return m
+}
+
 func (m *Mock) Close() error {
 	call := m.Mock.Call("Close")
 	if call.Return[0] == nil {
 		return nil
 	}
 	return call.Return[0].(error)
+}
+
+func (m *Mock) Offset(value int) Data {
+	m.Mock.Call("Offset", value)
+	return m
+}
+
+func (m *Mock) Limit(value int) Data {
+	m.Mock.Call("Limit", value)
+	return m
 }
 
 func (m *Mock) Association(value string) Association {

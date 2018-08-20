@@ -21,12 +21,13 @@ func Authorize(
 		) error {
 			session, err := sessionManager.Load(r)
 			if err != nil {
-				return errors.CodedError{
-					Message:  "Internal Server Error",
-					Code:     50,
-					HTTPCode: 500,
-					Err:      err,
-				}
+				return err
+				// return errors.CodedError{
+				// 	Message:  "Internal Server Error",
+				// 	Code:     50,
+				// 	HTTPCode: 500,
+				// 	Err:      err,
+				// }
 			}
 			if session == nil {
 				return errors.CodedError{

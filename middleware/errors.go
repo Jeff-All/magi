@@ -11,7 +11,6 @@ import (
 type ErrorHandler func(http.ResponseWriter, *http.Request) error
 
 func HandleError(
-	name string,
 	next ErrorHandler,
 ) http.Handler {
 	return http.HandlerFunc(func(
@@ -22,27 +21,37 @@ func HandleError(
 			var ok bool
 			var codedError errors.CodedError
 			if codedError, ok = err.(errors.CodedError); !ok {
+				log.Debug("Not a Coded Error")
 				codedError.Code = 0
 				codedError.Message = "Internal Server Error."
 				codedError.HTTPCode = http.StatusInternalServerError
 				codedError.Err = err
 			}
+
 			log.WithFields(log.Fields{
-				"code":      codedError.Code,
+				"fields":    codedError.Fields,
 				"message":   codedError.Message,
 				"http_code": codedError.HTTPCode,
-				"error":     err.Error(),
-			}).Errorf("Error executing '%s'", name)
+				"code":      codedError.Code,
+				"error":     codedError.Err,
+			}).Errorf(
+				"Error executing '%s':'%s'",
+				r.URL.Path,
+				r.Method,
+			)
+
+			root := codedError.Root()
 
 			var errorJSON []byte
-			if errorJSON, err = json.Marshal(codedError); err != nil {
+			if errorJSON, err = json.Marshal(root); err != nil {
 				log.WithFields(log.Fields{
-					"name":  name,
-					"error": err.Error(),
+					"route":  r.URL.Path,
+					"method": r.Method,
+					"error":  err.Error(),
 				}).Error("Error while marshaling an error into JSON")
 				w.Write([]byte("Internal Server Error"))
 			}
-			w.WriteHeader(codedError.HTTPCode)
+			w.WriteHeader(root.HTTPCode)
 			w.Write(errorJSON)
 		}
 	})

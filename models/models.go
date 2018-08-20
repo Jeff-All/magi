@@ -12,7 +12,7 @@ var DB data.Data
 func AutoMigrate() {
 	res.DB.AutoMigrate(
 		&Request{},
-		&Agency{},
+		// &Agency{},
 		&Gift{},
 		&Tag{},
 		&Endpoint{},
@@ -22,22 +22,18 @@ func AutoMigrate() {
 }
 
 type BaseModel struct {
-	ID        uint64 `gorm:"primary_key;AUTO_INCREMENT"`
-	CreatedAt *time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time `sql:"index"`
-}
-
-type Agency struct {
-	BaseModel
+	CreatedAt *time.Time `json:"-"`
+	UpdatedAt time.Time  `json:"-"`
+	DeletedAt *time.Time `json:"-" sql:"index"`
 }
 
 type Gift struct {
 	BaseModel
 
+	ID          uint64 `gorm:"primary_key;AUTO_INCREMENT"`
 	Description string `gorm:"size:255"`
 
-	Request Request
+	RequestID uint64
 }
 
 type Tag struct {
