@@ -30,8 +30,11 @@ type BaseModel struct {
 type Gift struct {
 	BaseModel
 
-	ID          uint64 `gorm:"primary_key;AUTO_INCREMENT"`
-	Description string `gorm:"size:255"`
+	ID uint64 `gorm:"primary_key;AUTO_INCREMENT"`
+
+	Category    string
+	Name        string
+	Description string
 
 	RequestID uint64
 }

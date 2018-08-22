@@ -8,11 +8,13 @@ import (
 
 	"github.com/Jeff-All/magi/errors"
 	"github.com/Jeff-All/magi/session"
+	"github.com/sirupsen/logrus"
 )
 
 func Authorize(
 	enforcer *casbin.Enforcer,
 	sessionManager *session.Manager,
+	loginURL string,
 ) func(next ErrorHandler) ErrorHandler {
 	return func(next ErrorHandler) ErrorHandler {
 		return func(
@@ -21,21 +23,19 @@ func Authorize(
 		) error {
 			session, err := sessionManager.Load(r)
 			if err != nil {
-				return err
-				// return errors.CodedError{
-				// 	Message:  "Internal Server Error",
-				// 	Code:     50,
-				// 	HTTPCode: 500,
-				// 	Err:      err,
-				// }
+				return errors.CodedError{
+					Message:  "Internal Server Error",
+					HTTPCode: http.StatusInternalServerError,
+					Err:      err,
+				}
 			}
 			if session == nil {
-				return errors.CodedError{
-					Message:  "Invalid Authentication",
-					Code:     50,
-					HTTPCode: 401,
-					Err:      fmt.Errorf("Invalid Authentication"),
-				}
+				http.Redirect(w, r, loginURL+"?origin="+r.URL.Path, 302)
+				logrus.WithFields(logrus.Fields{
+					"redirect_url": loginURL,
+					"route":        r.URL.Path,
+				}).Debug("No session: Re-Directing to log-in")
+				return nil
 			}
 			roles, ok := session.Values["roles"].([]string)
 			if !ok {

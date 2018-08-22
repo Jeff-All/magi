@@ -12,28 +12,28 @@ type Manager struct {
 	sessions.Store
 }
 
-func (m *Manager) Load(r *http.Request) (*sessions.Session, error) {
-	session, err := m.Store.Get(r, "user")
+func (m *Manager) Login(
+	w http.ResponseWriter,
+	r *http.Request,
+) error {
+	session, err := m.Store.New(r, "user")
 	if err != nil {
-		return nil, errors.CodedError{
-			Message:  "Unable to load sessiion",
+		return errors.CodedError{
+			Message:  "Unable to load sesssion",
 			HTTPCode: http.StatusInternalServerError,
 			Err:      err,
 		}
 	}
-	if !session.IsNew {
-		return session, nil
-	}
 	user, err := auth.AuthRequest(r)
 	if err != nil {
-		return nil, errors.CodedError{
+		return errors.CodedError{
 			Message:  "Unable to auth request",
 			HTTPCode: http.StatusUnauthorized,
 			Err:      err,
 		}
 	}
 	if user == nil {
-		return nil, errors.CodedError{
+		return errors.CodedError{
 			Message:  "Unable to auth request",
 			HTTPCode: http.StatusUnauthorized,
 		}
@@ -41,5 +41,33 @@ func (m *Manager) Load(r *http.Request) (*sessions.Session, error) {
 	session.Values = make(map[interface{}]interface{})
 	session.Values["id"] = user.ID
 	session.Values["roles"] = user.Roles()
-	return session, nil
+	err = m.Store.Save(r, w, session)
+	if err != nil {
+		return errors.CodedError{
+			Message:  "Unable to save session",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+		}
+	}
+	return nil
+}
+
+func (m *Manager) Load(
+	r *http.Request,
+) (
+	*sessions.Session,
+	error,
+) {
+	session, err := m.Store.Get(r, "user")
+	if err != nil {
+		return nil, errors.CodedError{
+			Message:  "Unable to load sesssion",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+		}
+	}
+	if !session.IsNew {
+		return session, nil
+	}
+	return nil, nil
 }

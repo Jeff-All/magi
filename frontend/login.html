@@ -1,0 +1,61 @@
+<html>
+    <header>
+        <script lang="javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    </header>
+    <body>
+        <script>
+            function login(evt) {
+                evt.preventDefault()
+                console.log("login()")
+                jQuery.ajax({
+                    url: window.location.pathname,
+                    type: 'PUT',
+                    beforeSend: function (xhr) {
+                        username = $("#username").val()
+                        password = $("#password").val()
+                        var auth = btoa(username+":"+password)
+                        console.log("beforeSend", auth, username, password)
+                        xhr.setRequestHeader("Authorization", "Basic " + auth);
+                    },
+                    success: function(data, text) {
+                        console.log("success", text, data)
+                        var origin = urlParams()["origin"]
+                        if(origin && origin != undefined) {
+                            window.location.href = origin
+                        } else {
+                            window.location.href = "/";    
+                        }
+                    },
+                    error: function(jqXHR, status, error) {
+                        console.log("error", status, error)
+                        if(error == "Unauthorized") {
+                            document.getElementById("output").innerHTML = "Invalid Credentials"
+                        } else {
+                            document.getElementById("output").innerHTML = "Error Submitting Credentials"
+                        }
+                        
+                    }
+                });
+                return false
+            }
+            function urlParams() {
+                var split = window.location.href.split("?")
+                var params = []
+                if(split.length > 1) {
+                    var tuples = split[1].split("&")    
+                    tuples.forEach(element => {
+                        spl = element.split("=")
+                        params[spl[0]]=spl[1]
+                    });
+                }
+                return params
+            }
+        </script>
+        <form onsubmit="login(event);return false;">
+            Username:<input type="text" name="username" id="username"><br>
+            Password:<input type="password" name="password" id="password"><br>
+            <input type="submit" value="Login">
+        </form>
+        <div id="output"></div>
+    </body>
+</html>

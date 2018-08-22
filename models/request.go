@@ -26,7 +26,15 @@ type Request struct {
 
 	ID uint64 `gorm:"primary_key;AUTO_INCREMENT"`
 
-	Agency string
+	FamilyID   int    `gorm:"unique_index:idx_full_name"`
+	FamilyName string `gorm:"unique_index:idx_full_name"`
+	FirstName  string `gorm:"unique_index:idx_full_name"`
+
+	Program    string
+	Age        int
+	Gender     string
+	Response   string
+	AdultChild string
 
 	Gifts []Gift `gorm:"foreignkey:RequestID"`
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/sessions"
 
 	"github.com/Jeff-All/magi/auth"
+	"github.com/Jeff-All/magi/errors"
 	. "github.com/Jeff-All/magi/middleware"
 	res "github.com/Jeff-All/magi/resources"
 	"github.com/Jeff-All/magi/session"
@@ -37,6 +38,8 @@ import (
 	data "github.com/Jeff-All/magi/data"
 
 	"github.com/Jeff-All/magi/endpoints/request"
+
+	"io/ioutil"
 )
 
 func main() {
@@ -154,10 +157,6 @@ func BuildAddress(
 		toReturn = "localhost"
 	}
 	toReturn += ":" + viper.GetString("server.port")
-	log.WithFields(log.Fields{
-		"local":   local,
-		"address": toReturn,
-	}).Debug("BuildAddress")
 	return toReturn
 }
 
@@ -188,7 +187,7 @@ func LaunchServer(
 
 	BuildSessionManager()
 	BuildEnforcer()
-	ConfigureRoutes(r)
+	ConfigureRoutes(r, local)
 
 	s := BuildServer(r, local)
 
@@ -200,7 +199,9 @@ func LaunchServer(
 }
 
 func BuildSessionManager() {
-	res.Session = &session.Manager{Store: sessions.NewCookieStore([]byte(auth.PrivateKey))}
+	res.Session = &session.Manager{
+		Store: sessions.NewCookieStore([]byte(viper.GetString("session.private"))),
+	}
 }
 
 func BuildEnforcer() {
@@ -215,11 +216,16 @@ func BuildEnforcer() {
 
 func ConfigureRoutes(
 	r *mux.Router,
+	local bool,
 ) {
 	log.Debugf("ConfigureRoutes")
 
 	middleware := func(final ErrorHandler) func(http.ResponseWriter, *http.Request) {
-		return HandleError(Authorize(res.Enforcer, res.Session)(final)).ServeHTTP
+		return HandleError(Authorize(
+			res.Enforcer,
+			res.Session,
+			"/login",
+		)(final)).ServeHTTP
 	}
 
 	r.HandleFunc("/requests", middleware(request.Request.PUT)).Methods("PUT")
@@ -231,6 +237,36 @@ func ConfigureRoutes(
 	// r.HandleFunc("/requests/{id}/gifts", middleware(request.Request.GETPAGEGift)).Methods("GET")
 	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.GET)).Methods("GET")
 	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.DELETE)).Methods("DELETE")
+
+	r.HandleFunc("/login", HandleError(res.Session.Login).ServeHTTP).Methods("PUT")
+	r.HandleFunc("/login", HandleError(GetHTML("frontend/login")).ServeHTTP).Methods("GET")
+
+	r.HandleFunc("/processor.html", middleware(GetHTML("frontend/processor"))).Methods("GET")
+	r.HandleFunc("/", middleware(GetHTML("frontend/index"))).Methods("GET")
+}
+
+func GetHTML(filename string) func(w http.ResponseWriter, r *http.Request) error {
+	filename = "./" + filename + ".html"
+	return func(w http.ResponseWriter, r *http.Request) error {
+		file, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return errors.CodedError{
+				Message:  "Internal Server Error",
+				HTTPCode: http.StatusInternalServerError,
+				Err:      err,
+			}
+		}
+		_, err = w.Write(file)
+		if err != nil {
+			return errors.CodedError{
+				Message:  "Internal Server Error",
+				HTTPCode: http.StatusInternalServerError,
+				Err:      err,
+			}
+		}
+		return nil
+	}
+
 }
 
 func createUsers() models.Users {

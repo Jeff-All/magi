@@ -39,6 +39,9 @@ func (i BaseRequest) PUT(
 	if err != nil {
 		return err
 	}
+	log.WithFields(log.Fields{
+		"body": string(body),
+	}).Debug("/Request:PUT")
 
 	// Parse into models.Request
 	var requests []*models.Request

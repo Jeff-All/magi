@@ -1,0 +1,120 @@
+<html>
+    <head>
+        <script lang="javascript" src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+        <script lang="javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    </head>
+    <body>
+        <script>
+            const url_requests = 'http://localhost:8081/requests'
+            function process() {
+                file = document.getElementById("file").files[0];
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var data = e.target.result
+                    var workbook = XLSX.read(e.target.result, {type: 'binary'});
+                    var jsonish = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    var json = JSON.stringify(jsonish)
+
+                    console.log("data", data);
+                    console.log("workbook", workbook);
+                    console.log("jsonish", jsonish);
+                    console.log("json", json)
+
+                    var obj = processWorkbook(workbook)
+                    send(obj)
+                }
+                reader.readAsBinaryString(file)
+            }
+            function send(obj) {
+                jQuery.ajax({
+                    url: url_requests,
+                    type: 'PUT',
+                    data: JSON.stringify(obj),
+                    dataType: "json",
+
+                    success: function(text) {
+                        console.log("success", text)
+                        document.getElementById("output").innerHTML = JSON.stringify(text)
+                    },
+                    error: function(jqXHR, status, error) {
+                        console.log("error", jqXHR, status, error)
+                        document.getElementById("output").innerHTML = error
+                    }
+                });
+            }
+            function processWorkbook(workbook) {
+                console.log("processWorkbook")
+                var obj;
+                for(var i=0; i<workbook.SheetNames.length; i++) {
+                    if(i == 0) {
+                        obj = processWorksheet(workbook.Sheets[workbook.SheetNames[i]])
+                    } else {
+                        obj.concat(processWorksheet(workbook.Sheets[workbook.SheetNames[i]]))
+                    }
+                }
+                return obj
+            }
+            function processWorksheet(worksheet) {
+                console.log("processWorksheet")
+                map = mapHeaders(worksheet);
+                console.log("map", map);
+                var obj = [];
+                var row = 2;
+                while(worksheet["A"+row]) {
+                    obj.push(processRow(worksheet,row,map))
+                    row++;
+                }
+                console.log("processed sheet", obj);
+                console.log("json sheet", JSON.stringify(obj));
+                return obj;
+            }
+            function mapHeaders(worksheet) {
+                var map = {};
+                var i = 0;
+                do {
+                    var colChar = String.fromCharCode(i + 65)
+                    var id = colChar+"1";
+                    var cur = worksheet[id];
+                    if(cur) {
+                        map[cur.v.toLowerCase()] = colChar;
+                    }
+                    console.log("mapHeader", colChar, id, cur, i);
+                    i++;
+                } while(cur)
+                return map
+            }
+            function processRow(worksheet, row, map) {
+                console.log("processRow()", row, map)
+                var jsonObj = {
+                    FamilyID:   worksheet[map["family_id"] + row].v,
+                    Response:   worksheet[map["response"] + row].v,
+                    FamilyName: worksheet[map["familyname"] + row].v,
+                    AdultChild: worksheet[map["adult/child"] + row].v,
+                    FirstName:  worksheet[map["first_name"] + row].v,
+                    // DOB:        worksheet[map["dob"] + row].w,
+                    Program:    worksheet[map["program"] + row].v,
+                    Age:        worksheet[map["age"] + row].v,
+                    Gender:     worksheet[map["gender"] + row].v,
+                    
+                    gifts:[{
+                        Category:   worksheet[map["gift1_category"] + row].v,
+                        Name:       worksheet[map["gift1"] + row].v,
+                        Detail:     worksheet[map["gift1_detail"] + row] ? worksheet[map["gift1_detail"] + row].v : undefined,
+                        Description: "test",
+                    }],
+                };
+                if(worksheet[map["gift2"] + row]) {
+                    jsonObj.gifts.push({
+                        Category:   worksheet[map["gift2_category"] + row].v,
+                        Name:       worksheet[map["gift2"] + row].v,
+                        Detail:     worksheet[map["gift2_detail"] + row].v, 
+                    });
+                }
+                return jsonObj;
+            }
+        </script>
+        <input type="file" name="file" id="file"/>
+        <input type="submit" name="submit" onclick="process()"/>
+        <p id="output"></p>
+    </body>
+</html>
