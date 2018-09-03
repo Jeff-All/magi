@@ -12,6 +12,38 @@ type Manager struct {
 	sessions.Store
 }
 
+func (m *Manager) LogOut(
+	w http.ResponseWriter,
+	r *http.Request,
+) error {
+	session, err := m.Store.Get(r, "user")
+	if err != nil {
+		return errors.CodedError{
+			Message:  "unable to logout",
+			HTTPCode: 500,
+			Err:      err,
+		}
+	}
+
+	session.Values["id"] = ""
+	session.Values["roles"] = ""
+	session.Options.MaxAge = -1
+
+	if err := m.Store.Save(r, w, session); err != nil {
+		return errors.CodedError{
+			Message:  "unable to store session",
+			HTTPCode: 500,
+			Err:      err,
+		}
+	}
+
+	if r.Method == "GET" {
+		http.Redirect(w, r, "/login", http.StatusFound)
+	}
+
+	return nil
+}
+
 func (m *Manager) Login(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -40,7 +72,7 @@ func (m *Manager) Login(
 	}
 	session.Values = make(map[interface{}]interface{})
 	session.Values["id"] = user.ID
-	session.Values["roles"] = user.Roles()
+	session.Values["roles"] = user.GetRoles()
 	err = m.Store.Save(r, w, session)
 	if err != nil {
 		return errors.CodedError{

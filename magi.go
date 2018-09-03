@@ -9,11 +9,18 @@ import (
 	"time"
 	"toolbox"
 
+	"github.com/Jeff-All/magi/endpoints/login"
+
+	"github.com/Jeff-All/magi/endpoints/admin/user/application"
+
 	"github.com/casbin/casbin"
 	"github.com/gorilla/sessions"
 
+	"github.com/Jeff-All/magi/endpoints"
+
 	"github.com/Jeff-All/magi/auth"
 	"github.com/Jeff-All/magi/errors"
+	"github.com/Jeff-All/magi/mail"
 	. "github.com/Jeff-All/magi/middleware"
 	res "github.com/Jeff-All/magi/resources"
 	"github.com/Jeff-All/magi/session"
@@ -76,7 +83,7 @@ func main() {
 			Name:    "init",
 			Aliases: []string{"i"},
 			Action:  Init,
-			Flags:   app.Flags,
+			Flags:   append(app.Flags, cli.BoolFlag{Name: "overwrite, ow"}),
 		},
 		{
 			Name:    "auth",
@@ -109,14 +116,28 @@ func Common(c *cli.Context) error {
 	return nil
 }
 
+func InitEmail(c *cli.Context) {
+	password, err := ReadPassword()
+	if err != nil {
+		log.Fatal("Unable to read password")
+	}
+	mail.Init(
+		viper.GetString("mail.host"),
+		viper.GetInt("mail.port"),
+		viper.GetString("mail.user"),
+		password,
+	)
+}
+
 func Run(c *cli.Context) error {
 	log.Printf("Starting Application")
 	Common(c)
+	InitEmail(c)
 	ConnectDatabase()
 	defer res.DB.Close()
 	Bind()
 
-	LaunchServer(c.Bool("local"))
+	LaunchServer()
 
 	return nil
 }
@@ -149,30 +170,17 @@ func SetLogLevel(
 	log.SetLevel(log.ErrorLevel)
 }
 
-func BuildAddress(
-	local bool,
-) string {
-	toReturn := ""
-	if local {
-		toReturn = "localhost"
-	}
-	toReturn += ":" + viper.GetString("server.port")
-	return toReturn
-}
-
 func BuildServer(
 	r *mux.Router,
-	local bool,
 ) *http.Server {
 	logrus.WithFields(log.Fields{
-		"local":          local,
 		"readTimeout":    viper.GetInt("server.readTimeout"),
 		"writeTimeout":   viper.GetInt("server.writeTimeout"),
 		"maxHeaderBytes": viper.GetInt("server.maxHeaderBytes"),
-		"port":           viper.GetInt("server.port"),
+		"domain":         viper.GetString("server.domain"),
 	}).Debug("BuildServer")
 	return &http.Server{
-		Addr:           BuildAddress(local),
+		Addr:           viper.GetString("server.domain"),
 		Handler:        r,
 		ReadTimeout:    (time.Duration)(viper.GetInt("server.readTimeout")) * time.Second,
 		WriteTimeout:   (time.Duration)(viper.GetInt("server.writeTimeout")) * time.Second,
@@ -180,22 +188,18 @@ func BuildServer(
 	}
 }
 
-func LaunchServer(
-	local bool,
-) {
+func LaunchServer() {
 	r := mux.NewRouter()
 
 	BuildSessionManager()
 	BuildEnforcer()
-	ConfigureRoutes(r, local)
+	ConfigureRoutes(r)
 
-	s := BuildServer(r, local)
-
-	// auth := middleware.Authorize(res.Enforcer, res.Session)
+	s := BuildServer(r)
 
 	http.Handle("/", r)
 
-	log.Fatal(s.ListenAndServe())
+	log.Fatal(s.ListenAndServeTLS("dev.magi.crt", "dev.magi.key"))
 }
 
 func BuildSessionManager() {
@@ -216,32 +220,53 @@ func BuildEnforcer() {
 
 func ConfigureRoutes(
 	r *mux.Router,
-	local bool,
 ) {
 	log.Debugf("ConfigureRoutes")
 
 	middleware := func(final ErrorHandler) func(http.ResponseWriter, *http.Request) {
-		return HandleError(Authorize(
+		return Log(HandleError(Authorize(
 			res.Enforcer,
 			res.Session,
 			"/login",
-		)(final)).ServeHTTP
+		)(final))).ServeHTTP
 	}
 
-	r.HandleFunc("/requests", middleware(request.Request.PUT)).Methods("PUT")
-	r.HandleFunc("/requests", middleware(request.Request.GETPAGE)).Methods("GET")
-	r.HandleFunc("/requests/{id}", middleware(request.Request.GET)).Methods("GET")
-	r.HandleFunc("/requests/{id}", middleware(request.Request.DELETE)).Methods("DELETE")
+	noauth := func(final ErrorHandler) func(http.ResponseWriter, *http.Request) {
+		return Log(HandleError(final)).ServeHTTP
+	}
 
-	r.HandleFunc("/requests/{id}/gifts", middleware(request.Request.PUTGift)).Methods("PUT")
-	// r.HandleFunc("/requests/{id}/gifts", middleware(request.Request.GETPAGEGift)).Methods("GET")
-	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.GET)).Methods("GET")
-	// r.HandleFunc("/requests/{id}/gifts/{gift_id}", middleware(request.Request.DELETE)).Methods("DELETE")
+	r.HandleFunc("/api/requests", middleware(request.Request.PUT)).Methods("PUT")
+	r.HandleFunc("/api/requests", middleware(request.Request.GETPAGE)).Methods("GET")
+	r.HandleFunc("/api/requests/upload", middleware(GetHTML("frontend/requests_upload"))).Methods("GET")
+	r.HandleFunc("/api/requests/{id}", middleware(request.Request.GET)).Methods("GET")
+	r.HandleFunc("/api/requests/{id}", middleware(request.Request.DELETE)).Methods("DELETE")
 
-	r.HandleFunc("/login", HandleError(res.Session.Login).ServeHTTP).Methods("PUT")
-	r.HandleFunc("/login", HandleError(GetHTML("frontend/login")).ServeHTTP).Methods("GET")
+	r.HandleFunc("/api/requests/{id}/gifts", middleware(request.Request.PUTGift)).Methods("PUT")
+	// r.HandleFunc("api/requests/{id}/gifts", middleware(request.Request.GETPAGEGift)).Methods("GET")
+	// r.HandleFunc("api/requests/{id}/gifts/{gift_id}", middleware(request.Request.GET)).Methods("GET")
+	// r.HandleFunc("api/requests/{id}/gifts/{gift_id}", middleware(request.Request.DELETE)).Methods("DELETE")
 
-	r.HandleFunc("/processor.html", middleware(GetHTML("frontend/processor"))).Methods("GET")
+	r.HandleFunc("/admin/users/application.html", middleware(GetHTML("frontend/add_user"))).Methods("GET")
+	r.HandleFunc("/admin/users/application", middleware(application.PUT())).Methods("PUT")
+	r.HandleFunc("/admin/users", middleware(endpoints.GETPage(auth.User{}, res.DB))).Methods("GET")
+
+	r.HandleFunc("/login", noauth(res.Session.Login)).Methods("PUT")
+	r.HandleFunc("/login", noauth(GetHTML("frontend/login"))).Methods("GET")
+
+	r.HandleFunc("/logout", noauth(res.Session.LogOut)).Methods("GET")
+
+	r.HandleFunc("/js/validation.js", noauth(endpoints.GetResource)).Methods("GET")
+
+	GETApplication, err := application.GET("frontend/register", true)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("Error building /login/{hash} handler")
+	}
+
+	r.HandleFunc(`/login/{hash:[A-Za-z0-9\-_\=]+}.html`, noauth(GETApplication)).Methods("GET")
+	r.HandleFunc(`/login/{hash:[A-Za-z0-9\-_\=]+}`, noauth(login.PUTHash())).Methods("PUT")
+
 	r.HandleFunc("/", middleware(GetHTML("frontend/index"))).Methods("GET")
 }
 
@@ -266,7 +291,6 @@ func GetHTML(filename string) func(w http.ResponseWriter, r *http.Request) error
 		}
 		return nil
 	}
-
 }
 
 func createUsers() models.Users {
@@ -318,7 +342,7 @@ func Init(c *cli.Context) error {
 	fmt.Println("Init")
 	Common(c)
 	log.Debug("Init()")
-	if _, err := os.Stat(viper.GetString("database.config.file")); err == nil {
+	if _, err := os.Stat(viper.GetString("database.config.file")); err == nil && !c.Bool("overwrite") {
 		log.WithFields(log.Fields{
 			"File": viper.GetString("database.config.file"),
 		}).Error("Cannot Init a database that already exists")
@@ -336,6 +360,9 @@ func Init(c *cli.Context) error {
 	models.AutoMigrate()
 	auth.Init()
 	auth.AddRootUser(password)
+	auth.AddRole("manager")
+	auth.AddRole("recorder")
+	auth.AddRole("shopper")
 	return nil
 }
 

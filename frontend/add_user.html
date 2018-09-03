@@ -1,0 +1,86 @@
+<html>
+    <header>
+        <script lang="javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script lang="javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.17.0/jquery.validate.min.js"></script>
+        <script lang="javascript" src="/js/validation.js"></script>
+    </header>
+    <body>
+        <script>
+            loadValidation()
+
+            $().ready(function() {
+                $("#form").validate({
+                    rules:{
+                        email: {
+                            required: true,
+                            email: true
+                        },
+                        email_confirmation: {
+                            required: true,
+                            match: {
+                                target: "email"
+                            }
+                        },
+                        role: {
+                            required: true
+                        }
+                    },
+                    messages:{
+                        email: {
+                            required: "Required",
+                            email: "Must be an email"
+                        },
+                        email_confirmation: {
+                            required: "!",
+                            match: "!"
+                        }
+                    }
+                });
+                $("#form").on('submit', function(e) {
+                    e.preventDefault()
+                    if($("#form").valid()) {
+                        console.log(window.location.pathname)
+                        jQuery.ajax({
+                            url: "/admin/users/application",
+                            type: 'PUT',
+                            data: JSON.stringify({
+                                email: $("#email").val(),
+                                role: $("#role").val()
+                            }),
+                            contentType: "application/json",
+                            beforeSend: function (xhr) {
+                                console.log("beforeSend")
+                            },
+                            success: function(data, text, request) {
+                                console.log("success", text, data)
+                                if(request.getResponseHeader('redirect-url')) {
+                                    window.location.href = "/login?origin=" + window.location.pathname
+                                }
+                                $("#form").trigger("reset")
+                                $("#output").hide().html("Success").fadeIn()
+                            },
+                            error: function(jqXHR, status, error) {
+                                console.log("error", status, error)
+                                $("#output").hide().html("Failure").fadeIn()
+                            }
+                        });
+                    }
+                });
+            });
+        </script>
+        <form id="form" action novalidate="novalidate">
+            <table id="table">
+                <tr><td>E-Mail</td><td><input type="string" id="email" name="email"></td></tr>
+                <tr><td>Confirm E-Mail</td><td><input type="string" id="email_confirmation" name="email_confirmation"></td></tr>
+                <tr><td>Role</td><td><select id="role" name="role">
+                    <option value="">---</option>
+                    <option value="recorder">Recorder</option>
+                    <option value="shopper">Shopper</option>
+                    <option value="manager">Manager</option>
+                </select></td></tr>
+                <tr><td><input type="submit" value="Add User"></td></tr>
+                <tr><td id="output" style="display: none;"></td></tr>
+            </table>
+        </form>
+    </body>
+</html>

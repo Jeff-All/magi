@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/sha512"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/jinzhu/gorm"
@@ -22,14 +21,12 @@ const (
 )
 
 func Init() error {
-	err := DB.AutoMigrate(&User{}, &Group{}).GetError()
+	err := DB.AutoMigrate(&User{}, &Role{}, &Application{}).GetError()
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err.Error(),
 		}).Error("Error Migrating Auth tables")
-		// return err
 	}
-	// _, err = AddRootUser(pw)
 
 	return err
 }
@@ -40,54 +37,52 @@ func AuthRequest(r *http.Request) (*User, error) {
 }
 
 func BasicAuthentication(
-	un string,
-	pw string,
+	username string,
+	password string,
 ) (*User, error) {
 	var user User
-	err := DB.Where("user_name = ?", un).Preload("Groups").First(&user).GetError()
+	err := DB.Where("email = ? AND active = 1", username).Preload("Roles").First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
-		log.WithFields(log.Fields{
-			"Username": un,
-			"Error":    err.Error(),
-		}).Error("Failed to query users")
-		return nil, err
-	} else if err == gorm.ErrRecordNotFound {
-		log.Debug("Unable to find User")
-		// return nil, fmt.Errorf("Unable to find user")
 		return nil, errors.CodedError{
-			Message: "Invalid Authentication",
+			Message:  "failed to query users",
+			HTTPCode: 500,
+			Code:     0,
+			Err:      err,
+		}
+	} else if err == gorm.ErrRecordNotFound {
+		return nil, errors.CodedError{
+			Message:  "invalid authentication",
 			HTTPCode: http.StatusUnauthorized,
+			Code:     1,
 		}
 	}
-
-	pwHash := GeneratePasswordHash(pw)
-
+	pwHash := GeneratePasswordHash(password)
 	if pwHash != user.Password {
-		log.WithFields(log.Fields{
-			"Username": un,
-		}).Debug("Password Did Not Match")
-		return nil, fmt.Errorf("Password did not match")
+		return nil, errors.CodedError{
+			Message:  "invalid password",
+			HTTPCode: http.StatusUnauthorized,
+			Code:     2,
+		}
 	}
-
 	return &user, nil
 }
 
 func GeneratePasswordHash(pw string) string {
-	toReturn := sha512.Sum512([]byte(pw + PrivateKey))
+	toReturn := sha512.Sum512([]byte(Salt + pw + PrivateKey))
 	return string(toReturn[:64])
 }
 
 func AddRootUser(
-	pw string,
+	password string,
 ) (*User, error) {
 	log.Debug("auth.AddRootUser()")
-	if !ValidatePassword(pw) {
+	if !ValidatePassword(password) {
 		log.Info("Invalid Password")
 		return nil, nil
 	}
 	// Check if Users has a root
 	var user User
-	err := DB.Where("user_name = ?", "root").First(&user).GetError()
+	err := DB.Where("email = ?", "root").First(&user).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Error": err,
@@ -98,8 +93,8 @@ func AddRootUser(
 		return nil, nil
 	}
 
-	var rootGroup Group
-	err = DB.Where("name = ?", "root").First(&rootGroup).GetError()
+	var rootRole Role
+	err = DB.Where("name = ?", "root").First(&rootRole).GetError()
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.WithFields(log.Fields{
 			"Error": err,
@@ -110,24 +105,13 @@ func AddRootUser(
 		return nil, nil
 	}
 
-	// testModel := models.Request{}
-
-	// err = DB.Create(&testModel).GetError()
-	// if err != nil {
-	// 	log.WithFields(log.Fields{
-	// 		"Error": err,
-	// 		// "group": string(groupstring),
-	// 	}).Error("Error Creating temp")
-	// }
-
-	rootGroup = Group{Name: "root"}
+	rootRole = Role{Name: "root"}
 	db, ok := DB.(*data.Gorm)
 	if !ok {
 		log.Error("Unable to convert to gorm")
 	}
-	// db, ok := data.Gorm.(DB)
-	groupstring, _ := json.Marshal(rootGroup)
-	err = db.DB.Create(&rootGroup).Error
+	groupstring, _ := json.Marshal(rootRole)
+	err = db.DB.Create(&rootRole).Error
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Error": err,
@@ -135,12 +119,11 @@ func AddRootUser(
 		}).Error("Error Creating Root Group")
 	}
 
-	// Create Root entry in users table
 	rootUser := User{
-		UserName: "root",
-		Password: GeneratePasswordHash(pw),
-		Level:    int(Root),
-		Groups:   []Group{rootGroup},
+		Email:    "root",
+		Password: GeneratePasswordHash(password),
+		Roles:    []Role{rootRole},
+		Active:   true,
 	}
 
 	userstring, _ := json.Marshal(rootUser)
@@ -154,7 +137,6 @@ func AddRootUser(
 		return nil, err
 	}
 	log.Debug("auth.AddRootUsers(): Success")
-	// Return Root User
 	return &rootUser, nil
 }
 

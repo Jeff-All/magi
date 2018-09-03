@@ -34,42 +34,59 @@ func (i BaseRequest) PUT(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
-	// Read body
 	body, err := util.IOUtil.ReadAll(r.Body)
 	if err != nil {
-		return err
+		return errors.CodedError{
+			Message:  "Unable to read the body",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+		}
 	}
-	log.WithFields(log.Fields{
-		"body": string(body),
-	}).Debug("/Request:PUT")
-
-	// Parse into models.Request
 	var requests []*models.Request
 	if err = util.Json.Unmarshal(body, &requests); err != nil {
-		log.WithFields(log.Fields{
-			"error": err.Error(),
-		}).Error("Error unmarshaling request")
-		return err
+		return errors.CodedError{
+			Message:  "Unable to unmarshal request",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+			Fields: log.Fields{
+				"body": string(body),
+			},
+		}
 	}
-
-	// Create model entry
-	if err = models.Requests.Create(requests...); err != nil {
-		return err
+	type ErrorResponse struct {
+		HTTPCode int
+		Message  string
 	}
-
-	// Generate response string
-	requestJSONString, err := util.Json.Marshal(requests)
+	log.WithFields(log.Fields{
+		"requests": requests,
+	}).Debug("request")
+	response := make([]interface{}, len(requests))
+	for i, val := range requests {
+		if err = models.Requests.Create(val); err != nil {
+			log.Error("Error create request")
+			response[i] = ErrorResponse{
+				HTTPCode: http.StatusInternalServerError,
+				Message:  err.Error(),
+			}
+		} else {
+			response[i] = val
+		}
+	}
+	requestJSONString, err := util.Json.Marshal(response)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"error": err.Error(),
-		}).Error("Error marshaling request")
-		return err
+		return errors.CodedError{
+			Message:  "Unable to marshal response",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+		}
 	}
-
-	// Write the response
 	w.Header().Set("Content-Type", "application/json")
 	if _, err = w.Write(requestJSONString); err != nil {
-		return err
+		return errors.CodedError{
+			Message:  "Error while writing the response",
+			HTTPCode: http.StatusInternalServerError,
+			Err:      err,
+		}
 	}
 	w.WriteHeader(http.StatusCreated)
 	return nil

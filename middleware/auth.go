@@ -30,7 +30,11 @@ func Authorize(
 				}
 			}
 			if session == nil {
-				http.Redirect(w, r, loginURL+"?origin="+r.URL.Path, 302)
+				if r.Method == "GET" {
+					http.Redirect(w, r, loginURL+"?origin="+r.URL.Path, 303)
+				} else {
+					w.Header().Add("redirect-url", loginURL+"?origin="+r.URL.Path)
+				}
 				logrus.WithFields(logrus.Fields{
 					"redirect_url": loginURL,
 					"route":        r.URL.Path,

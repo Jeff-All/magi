@@ -3,7 +3,8 @@
     port: 8081,
     readTimeout: 3,
     writeTimeout: 3,
-    maxHeaderBytes: 1000
+    maxHeaderBytes: 1000,
+    domain: "localhost:8081"
   },
   session: {
     private: "DF02D5BD74E8537EE11E346A90817D03B8277AEA1C007D05D8F18B85FF5756B7"
@@ -11,13 +12,15 @@
   auth: {
     private: "6E232E81CAB6D89C12C8975675ECE114199ACBFDF093AF260B92A1D7EE881F6A"
   },
+  mail: {
+    host: "smtp.gmail.com",
+    port: 587,
+    user: "magiadmen"
+  },
   database: {
     config: {
       driver: "sqlite3",
       file: "local.db"
     },
-    schema : {
-      
-    }
   },
 }

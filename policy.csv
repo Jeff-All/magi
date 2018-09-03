@@ -1,3 +1,5 @@
+p, *, /login*, *
+
 p, root, *, *
 
 p, admin, /users*, *

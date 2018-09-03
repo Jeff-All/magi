@@ -1,12 +1,12 @@
 package auth
 
 import (
-	"fmt"
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/Jeff-All/magi/mail"
 	"golang.org/x/crypto/ssh/terminal"
+	gomail "gopkg.in/gomail.v2"
 )
 
 type User struct {
@@ -15,37 +15,33 @@ type User struct {
 	UpdatedAt time.Time
 	DeletedAt *time.Time `sql:"index"`
 
-	UserName string `gorm:"size:255;unique"`
 	Password string `gorm:"size:64"`
+	Active   bool   `gorm:"default:false"`
+	Email    string `gorm:"unique_index;type:varchar(254)"`
 
-	Level int
-
-	Groups []Group `gorm:"many2many:user_groups"`
-}
-
-func _Root() User {
-	return User{
-		Level: 0,
-	}
+	Roles []Role `gorm:"many2many:user_roles"`
 }
 
 func ReadPassword() (string, error) {
-	fmt.Print("Password: ")
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
-	fmt.Print("\n")
 	if err != nil {
-		log.WithFields(log.Fields{
-			"Error": err,
-		}).Error("Error reading password")
 		return "", err
 	}
 	return string(password), nil
 }
 
-func (u *User) Roles() []string {
-	toReturn := make([]string, len(u.Groups))
-	for _, curGroup := range u.Groups {
-		toReturn = append(toReturn, curGroup.Name)
+func (u *User) Mail(
+	message *gomail.Message,
+) error {
+	message.SetHeader("To", u.Email)
+	message.SetHeader("From", "noreply@magi.com")
+	return mail.Send(message)
+}
+
+func (u *User) GetRoles() []string {
+	toReturn := make([]string, len(u.Roles))
+	for _, cur := range u.Roles {
+		toReturn = append(toReturn, cur.Name)
 	}
 	return toReturn
 }

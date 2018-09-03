@@ -14,6 +14,11 @@ func NewMock() Mock {
 	return Mock{Mock: mock.NewMock()}
 }
 
+func (m *Mock) Unscoped() Data {
+	m.Mock.Call("Unscoped")
+	return m
+}
+
 func (m *Mock) Create(value interface{}) Data {
 	m.Mock.Call("Create", value)
 	return m
@@ -48,8 +53,21 @@ func (m *Mock) First(
 	return m
 }
 
+func (m *Mock) Last(
+	value interface{},
+	values ...interface{},
+) Data {
+	m.Mock.Call("Last", value, values)
+	return m
+}
+
 func (m *Mock) Delete(value interface{}) Data {
 	m.Mock.Call("Delete", value)
+	return m
+}
+
+func (m *Mock) Save(value interface{}) Data {
+	m.Mock.Call("Save", value)
 	return m
 }
 
@@ -108,5 +126,10 @@ func (m *MockAssociation) Append(value interface{}) Association {
 
 func (m *MockAssociation) Delete(value interface{}) Association {
 	m.Mock.Mock.Call("Delete", value)
+	return m
+}
+
+func (m *MockAssociation) Find(value interface{}) Association {
+	m.Mock.Mock.Call("Find", value)
 	return m
 }

@@ -12,6 +12,11 @@ type GormAssociation struct {
 	*gorm.Association
 }
 
+func (g *Gorm) Unscoped() Data {
+	db := g.DB.Unscoped()
+	return &Gorm{DB: db}
+}
+
 func (g *Gorm) Create(value interface{}) Data {
 	db := g.DB.Create(value)
 	return &Gorm{DB: db}
@@ -48,18 +53,25 @@ func (g *Gorm) First(
 	return &Gorm{DB: db}
 }
 
-func (g *Gorm) Delete(value interface{}) Data {
-	// g.DB = g.DB.Delete(value)
-	// return g
+func (g *Gorm) Last(
+	value interface{},
+	values ...interface{},
+) Data {
+	db := g.DB.Last(value, values...)
+	return &Gorm{DB: db}
+}
 
+func (g *Gorm) Delete(value interface{}) Data {
 	db := g.DB.Delete(value)
 	return &Gorm{DB: db}
 }
 
-func (g *Gorm) Model(value interface{}) Data {
-	// g.DB = g.DB.Model(value)
-	// return g
+func (g *Gorm) Save(value interface{}) Data {
+	db := g.DB.Save(value)
+	return &Gorm{DB: db}
+}
 
+func (g *Gorm) Model(value interface{}) Data {
 	db := g.DB.Model(value)
 	return &Gorm{DB: db}
 }
@@ -68,15 +80,6 @@ func (g *Gorm) Find(value interface{}) Data {
 	db := g.DB.Find(value)
 	return &Gorm{DB: db}
 }
-
-// func (g *Gorm) Append(value interface{}) Data {
-// 	// g.DB = g.DB.Model(value)
-// 	// return g
-
-// 	g.DB.
-// 	db := g.DB.Append(value)
-// 	return &Gorm{DB: db}
-// }
 
 func (g *Gorm) Preload(column string, conditions ...interface{}) Data {
 	db := g.DB.Preload(column, conditions...)
@@ -119,5 +122,10 @@ func (g *GormAssociation) GetError() error {
 
 func (g *GormAssociation) Delete(value interface{}) Association {
 	g.Association = g.Association.Delete(value)
+	return g
+}
+
+func (g *GormAssociation) Find(value interface{}) Association {
+	g.Association = g.Association.Find(value)
 	return g
 }

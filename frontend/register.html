@@ -1,0 +1,78 @@
+<html>
+    <header>
+        <script lang="javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script lang="javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.17.0/jquery.validate.min.js"></script>
+        <script lang="javascript" src="/js/validation.js"></script>
+    </header>
+    <body>
+        <script>
+            loadValidation()
+
+            $(document).ready(function () {
+                $('#form').validate({
+                    rules: {
+                        email: {
+                            required: true,
+                            email: true,
+                        },
+                        password: {
+                            required: true,
+                            minlength: 8,
+                            maxlength: 20
+                        },
+                        confirmPassword: {
+                            required: true,
+                            match: {
+                                target: "password"
+                            }
+                        }
+                    },
+                    messages:{
+                        password: {
+                            minlength: $.validator.format("At least {0} characters"),
+                            maxlength: $.validator.format("At most {0} characters")
+                        },
+                        confirmPassword: {
+                            required: "!",
+                            match: "!"
+                        }
+                    }
+                })
+                $("#form").on('submit', function(e) {
+                    e.preventDefault()
+                    if($("#form").valid()) {
+                        jQuery.ajax({
+                            url: window.location.pathname.split(".")[0],
+                            type: 'PUT',
+                            data: JSON.stringify({
+                                email: $("#email").val(),
+                                password: $("#password").val()
+                            }),
+                            contentType: "application/json",
+                            beforeSend: function (xhr) {
+                                console.log("beforeSend")
+                            },
+                            success: function(data, text) {
+                                console.log("success", text, data)
+                                window.location.href = "/login";
+                            },
+                            error: function(jqXHR, status, error) {
+                                console.log("error", status, error)
+                                $("#output").hide().html("Failure").fadeIn()
+                            }
+                        });
+                    }
+                })
+            })
+        </script>
+        <form id="form" action novalidate="novalidate">
+            <table>
+                <tr>Register</tr>
+                <tr><td>email</td><td><input type="email" id="email" name="email"></td></tr>
+                <tr><td>password</td><td><input type="password" id="password" name="password"></td></tr>
+                <tr><td>confirm password</td><td><input type="password" id="confirmPassword" name="confirmPassword"></td></tr>
+                <tr><td><input type="submit" id="submit"></td></td></tr>
+            </table>
+        </form>
+    </body>
+</html>

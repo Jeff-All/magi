@@ -34,12 +34,32 @@
 
                     success: function(text) {
                         console.log("success", text)
-                        document.getElementById("output").innerHTML = JSON.stringify(text)
+                        if(data.redirect) {
+                            window.location.href = data.direct
+                        }
+                        updateOutput(text)  
                     },
                     error: function(jqXHR, status, error) {
                         console.log("error", jqXHR, status, error)
                         document.getElementById("output").innerHTML = error
                     }
+                });
+            }
+            function updateOutput(values) {
+                var i = 0
+                output = $("#output")
+                output.empty()
+                table = $('<table>')
+                output.append(table)
+                values.forEach(element => {
+                    console.log("updateOutput", element)
+                    if(element.HTTPCode != undefined) {
+                        row = $('<tr>')
+                        table.append(row)
+                        row.append($('<td>').text(i + 2))
+                        row.append($('<td>').text(element.Message))
+                    }
+                    i++
                 });
             }
             function processWorkbook(workbook) {
@@ -55,15 +75,17 @@
                 return obj
             }
             function processWorksheet(worksheet) {
-                console.log("processWorksheet")
+                console.log("processWorksheet", worksheet)
                 map = mapHeaders(worksheet);
                 console.log("map", map);
                 var obj = [];
                 var row = 2;
                 while(worksheet["A"+row]) {
+                    console.log("A"+row)
                     obj.push(processRow(worksheet,row,map))
                     row++;
                 }
+                console.log("End:A"+row)
                 console.log("processed sheet", obj);
                 console.log("json sheet", JSON.stringify(obj));
                 return obj;
@@ -115,6 +137,8 @@
         </script>
         <input type="file" name="file" id="file"/>
         <input type="submit" name="submit" onclick="process()"/>
-        <p id="output"></p>
+        <div id="output">
+            
+        </div>
     </body>
 </html>

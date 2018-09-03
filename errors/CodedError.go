@@ -5,11 +5,17 @@ import (
 )
 
 type CodedError struct {
+	Public   string
 	Message  string
-	Code     int
 	HTTPCode int
-	Err      error `json:"-"`
-	Fields   logrus.Fields
+
+	Package  string
+	Struct   string
+	Function string
+	Code     int
+
+	Err    error `json:"-"`
+	Fields logrus.Fields
 }
 
 func (err CodedError) Error() string {
@@ -22,7 +28,7 @@ func (err CodedError) Error() string {
 func (err CodedError) Root() CodedError {
 	if err.Err != nil {
 		if codedError, ok := err.Err.(CodedError); ok {
-			return codedError
+			return codedError.Root()
 		}
 	}
 	return err

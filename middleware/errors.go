@@ -27,20 +27,29 @@ func HandleError(
 				codedError.HTTPCode = http.StatusInternalServerError
 				codedError.Err = err
 			}
-
-			log.WithFields(log.Fields{
-				"fields":    codedError.Fields,
+			root := codedError.Root()
+			fields := log.Fields{
 				"message":   codedError.Message,
 				"http_code": codedError.HTTPCode,
 				"code":      codedError.Code,
 				"error":     codedError.Err,
-			}).Errorf(
+				"package":   root.Package,
+				"struct":    root.Struct,
+				"function":  root.Function,
+				"err":       root.Err,
+			}
+			for key, cur := range root.Fields {
+				if _, ok := fields[key]; !ok {
+					fields[key] = cur
+				} else {
+					fields[":"+key] = cur
+				}
+			}
+			log.WithFields(fields).Errorf(
 				"Error executing '%s':'%s'",
 				r.URL.Path,
 				r.Method,
 			)
-
-			root := codedError.Root()
 
 			var errorJSON []byte
 			if errorJSON, err = json.Marshal(root); err != nil {
