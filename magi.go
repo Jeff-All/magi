@@ -137,7 +137,7 @@ func Run(c *cli.Context) error {
 	defer res.DB.Close()
 	Bind()
 
-	LaunchServer()
+	LaunchServer(c)
 
 	return nil
 }
@@ -188,12 +188,14 @@ func BuildServer(
 	}
 }
 
-func LaunchServer() {
+func LaunchServer(
+	c *cli.Context,
+) {
 	r := mux.NewRouter()
 
 	BuildSessionManager()
 	BuildEnforcer()
-	ConfigureRoutes(r)
+	ConfigureRoutes(c, r)
 
 	s := BuildServer(r)
 
@@ -219,6 +221,7 @@ func BuildEnforcer() {
 }
 
 func ConfigureRoutes(
+	c *cli.Context,
 	r *mux.Router,
 ) {
 	log.Debugf("ConfigureRoutes")
@@ -246,9 +249,24 @@ func ConfigureRoutes(
 	// r.HandleFunc("api/requests/{id}/gifts/{gift_id}", middleware(request.Request.GET)).Methods("GET")
 	// r.HandleFunc("api/requests/{id}/gifts/{gift_id}", middleware(request.Request.DELETE)).Methods("DELETE")
 
-	r.HandleFunc("/admin/users/application.html", middleware(GetHTML("frontend/add_user"))).Methods("GET")
-	r.HandleFunc("/admin/users/application", middleware(application.PUT())).Methods("PUT")
-	r.HandleFunc("/admin/users", middleware(endpoints.GETPage(auth.User{}, res.DB))).Methods("GET")
+	r.HandleFunc("/admin/user/application.html", middleware(GetHTML("frontend/add_user"))).Methods("GET")
+	r.HandleFunc("/admin/user/application", middleware(application.PUT())).Methods("PUT")
+
+	type User struct {
+		ID     uint64
+		Active bool
+		Email  string
+		Roles  []auth.Role `gorm:"many2many:user_roles"`
+	}
+	r.HandleFunc("/admin/users", middleware(endpoints.GETPage(User{}, res.DB, "Roles"))).Methods("GET")
+	// r.HandleFunc("/admin/users", middleware(endpoints.UPDATE()))
+	if GetHTML, err := endpoints.GetHTML("frontend/users", c.Bool("debug")); err != nil {
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Fatal("Error Getting HTML for 'frontend/users'")
+	} else {
+		r.HandleFunc("/admin/users.html", middleware(GetHTML)).Methods("GET")
+	}
 
 	r.HandleFunc("/login", noauth(res.Session.Login)).Methods("PUT")
 	r.HandleFunc("/login", noauth(GetHTML("frontend/login"))).Methods("GET")
