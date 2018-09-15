@@ -3,8 +3,13 @@
     port: 8081,
     readTimeout: 3,
     writeTimeout: 3,
-    maxHeaderBytes: 1000,
+    maxHeaderBytes: 10000,
     domain: "localhost:8081"
+  },
+  frontend: {
+    views: "./views/",
+    static: "./static/",
+    node_modules: "./node_modules/"
   },
   session: {
     private: "DF02D5BD74E8537EE11E346A90817D03B8277AEA1C007D05D8F18B85FF5756B7"

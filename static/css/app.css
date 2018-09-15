@@ -1,0 +1,181 @@
+body {
+    margin: 0px;
+    font-family: "Calibri", sans-serif;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+tr {
+    background-color: white;
+    border-bottom-style: groove;
+    border-bottom-width: 1px;
+}
+
+td {
+    border-left-style: dotted;
+    border-right-style: dotted;
+    border-width: 1px;
+    padding-left: 5px;
+}
+
+th {
+    text-align: left;
+    border: 0px;
+    padding-left: 5px;
+    border-left-style: dotted;
+    border-right-style: dotted;
+    border-width: 1px;
+}
+
+.float-right {
+    float: right!important;
+    position: relative;
+    z-index: 0;
+    text-align: center;
+}
+
+progress {
+    width: calc(100% - 100px);
+}
+
+span {}
+
+.row {
+    margin: 5px 0px 5px 0px;
+    width: 100%;
+}
+
+.tableHeader {
+    background-color: lightgray;
+}
+
+
+.hover {
+    cursor: pointer;
+}
+
+.noHover {
+    cursor: default;
+}
+
+.menu {
+    float: right!important;
+    position: relative;
+    z-index: 10;
+    height: 40px;
+    margin: 0px 5px;
+}
+
+.menu_image {
+    width: 40px;
+    height: 40px;
+    z-index: 10;
+}
+
+.menu_image:hover {
+    filter: blur(1px);
+}
+
+.menu_image:active {
+    /* filter: hue-rotate(130deg) */
+    filter: none;
+    /* filter: brightness(200%); */
+}
+
+.menu_pane {
+    width: 200px;
+    position: absolute;
+    right: 0;
+    background-color: lightgrey;
+    filter: drop-shadow(1px 1px 1px grey);
+    user-select: none; 
+    font-weight: bolder;
+    z-index: 10;
+}
+
+.menu_header {
+    width: 100%;
+    background-color: grey;
+    -webkit-text-fill-color: white;
+    font-weight: bolder;
+    z-index: 10;
+}
+
+.menu_item {
+    width: 100%;
+    background-color: white;
+    -webkit-text-fill-color: black;
+    /* font-weight: bold;f */
+    border-top-width: 1px;
+    border-top-color: grey;
+    border-top-style: ridge;
+    border-bottom-width: 1px;
+    border-bottom-color: grey;
+    border-bottom-style: ridge;
+    /* filter: blur(1px); */
+    z-index: 10;
+}
+
+.menu_item:hover {
+    background-color: lightyellow;
+    /* -webkit-text-fill-color: darkgoldenrod; */
+}
+
+.menu_item:active {
+    background-color: palegreen;
+    /* -webkit-text-fill-color: darkgreen; */
+}
+
+.page {
+    margin: 0px;
+    padding: 0px;
+}
+
+.app {
+    width: 100%;
+}
+
+.header {
+    user-select: none;
+    height: 40px;
+    padding: 5px;
+    background-color: white;
+    border-radius: 5px 5px 0px 0px;
+    filter: drop-shadow(0px -1px 3px grey);
+    height: 45px;
+}
+
+.accountWidget {
+    height: 100%;
+}
+
+.pageContainer {
+    padding: 5px;
+}
+
+.headerTextContainer {
+    width: 50%;
+    position: relative;
+    height: 40px;
+    font-size: 30px;
+}
+
+.headerText {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    -webkit-margin-before: 0px;
+    -webkit-margin-after: 0px;
+    color: black;
+}
+
+.headerTextContainer > * {
+    vertical-align: text-bottom;
+}
+
+.file {
+    width: calc(100% - 57px);
+}

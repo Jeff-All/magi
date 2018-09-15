@@ -6,34 +6,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/Jeff-All/magi/errors"
-	"github.com/Jeff-All/magi/mock"
 	models "github.com/Jeff-All/magi/models"
 	util "github.com/Jeff-All/magi/util"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
-var Request iRequest = BaseRequest{}
-
-type iRequest interface {
-	PUT(http.ResponseWriter, *http.Request) error
-	GET(http.ResponseWriter, *http.Request) error
-	DELETE(http.ResponseWriter, *http.Request) error
-	GETPAGE(http.ResponseWriter, *http.Request) error
-	PUTGift(http.ResponseWriter, *http.Request) error
-}
-
-type MockRequest struct {
-	Mock mock.Mock
-}
-
-type BaseRequest struct{}
-
-func (i BaseRequest) PUT(
+func PUT(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
+
 	body, err := util.IOUtil.ReadAll(r.Body)
 	if err != nil {
 		return errors.CodedError{
@@ -42,6 +28,9 @@ func (i BaseRequest) PUT(
 			Err:      err,
 		}
 	}
+	logrus.WithFields(logrus.Fields{
+		"body": string(body),
+	}).Debug("Requests:PUT")
 	var requests []*models.Request
 	if err = util.Json.Unmarshal(body, &requests); err != nil {
 		return errors.CodedError{
@@ -54,8 +43,9 @@ func (i BaseRequest) PUT(
 		}
 	}
 	type ErrorResponse struct {
-		HTTPCode int
-		Message  string
+		Message string
+		Sheet   string
+		Row     int
 	}
 	log.WithFields(log.Fields{
 		"requests": requests,
@@ -65,8 +55,9 @@ func (i BaseRequest) PUT(
 		if err = models.Requests.Create(val); err != nil {
 			log.Error("Error create request")
 			response[i] = ErrorResponse{
-				HTTPCode: http.StatusInternalServerError,
-				Message:  err.Error(),
+				Message: err.Error(),
+				Sheet:   val.Sheet,
+				Row:     val.Row,
 			}
 		} else {
 			response[i] = val
@@ -92,7 +83,7 @@ func (i BaseRequest) PUT(
 	return nil
 }
 
-func (i BaseRequest) GETPAGE(
+func GETPAGE(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
@@ -141,7 +132,7 @@ func (i BaseRequest) GETPAGE(
 	return nil
 }
 
-func (i BaseRequest) GET(
+func GET(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
@@ -189,7 +180,7 @@ func (i BaseRequest) GET(
 	return nil
 }
 
-func (i BaseRequest) DELETE(
+func DELETE(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
@@ -223,7 +214,7 @@ func (i BaseRequest) DELETE(
 	return nil
 }
 
-func (i BaseRequest) PUTGift(
+func PUTGift(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {

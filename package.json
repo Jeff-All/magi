@@ -1,0 +1,10 @@
+{
+  "name": "magi",
+  "version": "0.1.0",
+  "dependencies": {
+    "auth0-js": "^9.7.3",
+    "json-api-store": "0.7.0",
+    "redux": "^4.0.0",
+    "redux-bees": "^0.1.10"
+  }
+}

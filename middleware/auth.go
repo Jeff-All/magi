@@ -11,6 +11,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// func AuthJWT() func(next ErrorHandler) ErrorHandler {
+// 	return func(
+// 		w http.ResponseWriter,
+// 		r *http.Request,
+// 	) error {
+
+// 	}
+// }
+
 func Authorize(
 	enforcer *casbin.Enforcer,
 	sessionManager *session.Manager,

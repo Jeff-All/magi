@@ -26,6 +26,9 @@ type Request struct {
 
 	ID uint64 `gorm:"primary_key;AUTO_INCREMENT"`
 
+	Sheet string `gorm:"-"`
+	Row   int    `gorm:"-"`
+
 	FamilyID   int    `gorm:"unique_index:idx_full_name"`
 	FamilyName string `gorm:"unique_index:idx_full_name"`
 	FirstName  string `gorm:"unique_index:idx_full_name"`
