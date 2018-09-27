@@ -5,6 +5,7 @@ type Data interface {
 	Create(interface{}) Data
 	GetError() error
 	AutoMigrate(...interface{}) Data
+	Order(interface{}) Data
 	Where(interface{}, ...interface{}) Data
 	First(interface{}, ...interface{}) Data
 	Last(interface{}, ...interface{}) Data

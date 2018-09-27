@@ -3,7 +3,6 @@ package session
 import (
 	"net/http"
 
-	"github.com/Jeff-All/magi/auth"
 	"github.com/Jeff-All/magi/errors"
 	"github.com/gorilla/sessions"
 )
@@ -44,45 +43,45 @@ func (m *Manager) LogOut(
 	return nil
 }
 
-func (m *Manager) Login(
-	w http.ResponseWriter,
-	r *http.Request,
-) error {
-	session, err := m.Store.New(r, "user")
-	if err != nil {
-		return errors.CodedError{
-			Message:  "Unable to load sesssion",
-			HTTPCode: http.StatusInternalServerError,
-			Err:      err,
-		}
-	}
-	user, err := auth.AuthRequest(r)
-	if err != nil {
-		return errors.CodedError{
-			Message:  "Unable to auth request",
-			HTTPCode: http.StatusUnauthorized,
-			Err:      err,
-		}
-	}
-	if user == nil {
-		return errors.CodedError{
-			Message:  "Unable to auth request",
-			HTTPCode: http.StatusUnauthorized,
-		}
-	}
-	session.Values = make(map[interface{}]interface{})
-	session.Values["id"] = user.ID
-	session.Values["roles"] = user.GetRoles()
-	err = m.Store.Save(r, w, session)
-	if err != nil {
-		return errors.CodedError{
-			Message:  "Unable to save session",
-			HTTPCode: http.StatusInternalServerError,
-			Err:      err,
-		}
-	}
-	return nil
-}
+// func (m *Manager) Login(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) error {
+// 	session, err := m.Store.New(r, "user")
+// 	if err != nil {
+// 		return errors.CodedError{
+// 			Message:  "Unable to load sesssion",
+// 			HTTPCode: http.StatusInternalServerError,
+// 			Err:      err,
+// 		}
+// 	}
+// 	user, err := auth.AuthRequest(r)
+// 	if err != nil {
+// 		return errors.CodedError{
+// 			Message:  "Unable to auth request",
+// 			HTTPCode: http.StatusUnauthorized,
+// 			Err:      err,
+// 		}
+// 	}
+// 	if user == nil {
+// 		return errors.CodedError{
+// 			Message:  "Unable to auth request",
+// 			HTTPCode: http.StatusUnauthorized,
+// 		}
+// 	}
+// 	session.Values = make(map[interface{}]interface{})
+// 	session.Values["id"] = user.ID
+// 	session.Values["roles"] = user.GetRoles()
+// 	err = m.Store.Save(r, w, session)
+// 	if err != nil {
+// 		return errors.CodedError{
+// 			Message:  "Unable to save session",
+// 			HTTPCode: http.StatusInternalServerError,
+// 			Err:      err,
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (m *Manager) Load(
 	r *http.Request,

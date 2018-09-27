@@ -1,20 +1,5 @@
-p, *, /login*, *
-
 p, root, *, *
 
-p, admin, /users*, *
+p, admin, *, *
 
-p, manager, /lists*, *
-p, manager, /tags*, *
-p, manager, /requests*, *
-p, manager, /gifts*, *
-p, manager, /purchases*, *
-p, manager, /checkins*, *
-
-p, checker, /tags*, GET
-p, checker, /checkins*, PUT
-p, checker, /checkins*, GET
-
-p, shopper, /lists*, GET
-p, shopper, /purchases*, PUT
-p, shopper, /purchases*, GET
+p, *, /role*, *

@@ -449,9 +449,9 @@ class Upload extends React.Component {
         <div className="row">
           <span>
             <input className="hover file" type="file"
-              onChange={(e) => {
-                console.log(e.target.files)
-                this.file = e.target.files[0];
+              onChange={(event) => {
+                console.log(event.target.files)
+                this.file = event.target.files[0];
               }}
             />
             <input className="hover" type="button" value="upload" 

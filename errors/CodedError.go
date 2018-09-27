@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+
 type CodedError struct {
 	Public   string
 	Message  string

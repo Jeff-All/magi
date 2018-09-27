@@ -3,27 +3,35 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
-	"toolbox"
 
+	"github.com/casbin/casbin"
+	"github.com/google/jsonapi"
+	"github.com/rs/cors"
+
+	"github.com/Jeff-All/magi/actions"
+	"github.com/Jeff-All/magi/auth"
 	"github.com/Jeff-All/magi/data"
+	"github.com/Jeff-All/magi/endpoints"
 
 	"github.com/Jeff-All/magi/middleware"
-	"github.com/Jeff-All/magi/models"
 	res "github.com/Jeff-All/magi/resources"
 
 	requests "github.com/Jeff-All/magi/endpoints/request"
 
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/auth0/go-jwt-middleware"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli"
+
+	. "github.com/Jeff-All/magi/errors"
 )
 
 func main() {
@@ -49,7 +57,14 @@ func main() {
 		},
 	}
 
-	app.Commands = []cli.Command{}
+	app.Commands = []cli.Command{
+		{
+			Name:    "init",
+			Aliases: []string{"i"},
+			Action:  Init,
+			Flags:   append(app.Flags, cli.BoolFlag{Name: "overwrite, ow"}),
+		},
+	}
 
 	app.Action = Run
 
@@ -60,17 +75,63 @@ func main() {
 	}
 }
 
-func Run(c *cli.Context) error {
-	log.Printf("Run")
+func Init(c *cli.Context) error {
+	fmt.Println("Init")
 	Common(c)
-	// InitEmail(c)
-	if err := ConnectDatabase(); err != nil { return err }
-	models.DB = res.DB
+	log.Debug("Init()")
+	if _, err := os.Stat(viper.GetString("database.config.file")); err == nil && !c.Bool("overwrite") {
+		log.WithFields(log.Fields{
+			"File":  viper.GetString("database.config.file"),
+			"error": err,
+		}).Error("Cannot Init a database that already exists")
+		return fmt.Errorf("Cannot Init a database that already exists")
+	}
+	ConnectDatabase()
+	defer res.DB.Close()
+
+	BindAuth()
+	if err := auth.Init(); err != nil {
+		return err
+	}
+
+	actions.DB = res.DB
+	actions.AutoMigrate()
+	return nil
+}
+
+func Run(context *cli.Context) error {
+	log.Printf("Run")
+	Common(context)
+	// InitEmail(context)
+	if err := ConnectDatabase(); err != nil {
+		return err
+	}
+	defer res.DB.Close()
+	actions.DB = res.DB
 	r := mux.NewRouter()
-	ConfigureRoutes(c, r)
-	s := BuildServer(r)
+	ConfigureRoutes(context, r)
+
+	corsConfig := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"PUT", "GET"},
+		AllowedHeaders:   []string{"Authorization"},
+		Debug:            true,
+	})
+
+	BuildEnforcer()
+
+	BindAuth()
+
+	server := &http.Server{
+		Addr:           viper.GetString("server.domain"),
+		Handler:        corsConfig.Handler(r),
+		ReadTimeout:    (time.Duration)(viper.GetInt("server.readTimeout")) * time.Second,
+		WriteTimeout:   (time.Duration)(viper.GetInt("server.writeTimeout")) * time.Second,
+		MaxHeaderBytes: viper.GetInt("server.maxHeaderBytes"),
+	}
 	http.Handle("/", r)
-	log.Fatal(s.ListenAndServeTLS("dev.magi.crt", "dev.magi.key"))
+	log.Fatal(server.ListenAndServeTLS("dev.magi.crt", "dev.magi.key"))
 	return nil
 }
 
@@ -78,9 +139,34 @@ func Common(c *cli.Context) error {
 	SetLogLevel(c)
 	viper.SetConfigName(c.String("config"))
 	viper.AddConfigPath(".")
-	err := viper.ReadInConfig()
-	toolbox.FatalError("unable to read config", err)
-	return nil
+	return viper.ReadInConfig()
+}
+
+func BindAuth() {
+	auth.DB = res.DB
+	auth.Enforcer = res.Enforcer
+}
+
+func BuildJsonAPI() {
+	jsonapi.Instrumentation = func(r *jsonapi.Runtime, eventType jsonapi.Event, callGUID string, dur time.Duration) {
+		metricPrefix := r.Value("instrument").(string)
+
+		if eventType == jsonapi.UnmarshalStart {
+			log.Debug("%s: id, %s, started at %v\n", metricPrefix+".jsonapi_unmarshal_time", callGUID, time.Now())
+		}
+
+		if eventType == jsonapi.UnmarshalStop {
+			log.Debug("%s: id, %s, stopped at, %v , and took %v to unmarshal payload\n", metricPrefix+".jsonapi_unmarshal_time", callGUID, time.Now(), dur)
+		}
+
+		if eventType == jsonapi.MarshalStart {
+			log.Debug("%s: id, %s, started at %v\n", metricPrefix+".jsonapi_marshal_time", callGUID, time.Now())
+		}
+
+		if eventType == jsonapi.MarshalStop {
+			log.Debug("%s: id, %s, stopped at, %v , and took %v to marshal payload\n", metricPrefix+".jsonapi_marshal_time", callGUID, time.Now(), dur)
+		}
+	}
 }
 
 // func InitEmail(c *cli.Context) {
@@ -114,7 +200,7 @@ func SetLogLevel(
 }
 
 func BuildServer(
-	r *mux.Router,
+	handler http.Handler,
 ) *http.Server {
 	log.WithFields(log.Fields{
 		"readTimeout":    viper.GetInt("server.readTimeout"),
@@ -124,7 +210,7 @@ func BuildServer(
 	}).Debug("BuildServer")
 	return &http.Server{
 		Addr:           viper.GetString("server.domain"),
-		Handler:        r,
+		Handler:        handler,
 		ReadTimeout:    (time.Duration)(viper.GetInt("server.readTimeout")) * time.Second,
 		WriteTimeout:   (time.Duration)(viper.GetInt("server.writeTimeout")) * time.Second,
 		MaxHeaderBytes: viper.GetInt("server.maxHeaderBytes"),
@@ -152,29 +238,23 @@ func ConfigureRoutes(
 	c *cli.Context,
 	r *mux.Router,
 ) {
-	r.Handle("/", http.FileServer(http.Dir(viper.GetString("frontend.views"))))
-
-	r.PathPrefix("/static/").Handler(
-		http.StripPrefix("/static/", http.FileServer(http.Dir(viper.GetString("frontend.static")))),
-	)
-
-	r.PathPrefix("/node_modules/").Handler(
-		http.StripPrefix("/node_modules/",
-			http.FileServer(http.Dir(viper.GetString("frontend.node_modules"))),
-		),
-	)
-
 	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
 		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-			log.Info("ValidationKeyGetter")
+
+			claims, err := json.Marshal(token.Claims)
+
+			log.WithFields(log.Fields{
+				"claims": string(claims),
+				"err":    err,
+			}).Debug("Token Claims")
+
 			// Verify 'aud' claim
-			aud := "https://jeffall.com/magi"
-			checkAud := token.Claims.(jwt.MapClaims).VerifyAudience(aud, false)
+			checkAud := token.Claims.(jwt.MapClaims).VerifyAudience("cJvGJ3Mpan5HRFFGBBtfg6ch4E2cu10f", true)
 			if !checkAud {
 				return token, errors.New("Invalid audience.")
 			}
 			// Verify 'iss' claim
-			iss := "https://magiadmen.auth0.com/"
+			iss := "https://jefall.auth0.com/"
 			checkIss := token.Claims.(jwt.MapClaims).VerifyIssuer(iss, false)
 			if !checkIss {
 				return token, errors.New("Invalid issuer.")
@@ -186,24 +266,103 @@ func ConfigureRoutes(
 			}
 
 			result, _ := jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
+			log.WithFields(log.Fields{
+				"result": result,
+			}).Debug("jwtMiddleware")
 			return result, nil
 		},
 		SigningMethod: jwt.SigningMethodRS256,
 	})
 
+	authorization := func(next middleware.ErrorHandler) middleware.ErrorHandler {
+		return func(w http.ResponseWriter, r *http.Request) error {
+			claims := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)
+			log.WithFields(log.Fields{
+				"claims": claims,
+			}).Debug("authorization")
+			if user, err := auth.GetUser(claims); err != nil {
+				return err
+			} else if err := user.EnforceRole(r); err != nil {
+				return err
+			}
+			return next(w, r)
+		}
+	}
+
+	logger := func(next http.Handler) func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
+			log.WithFields(log.Fields{
+				"headers": r.Header,
+			}).Debug("logging")
+
+			next.ServeHTTP(w, r)
+		}
+	}
+
 	authMiddleware := func(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			jwtMiddleware.HandlerWithNext(w, r, middleware.HandleError(next).ServeHTTP)
+			// logger(w, r)
+			jwtMiddleware.HandlerWithNext(w, r,
+				logger(
+					middleware.HandleError(
+						authorization(next))))
 		}
 	}
 
 	r.HandleFunc("/requests", authMiddleware(requests.PUT)).Methods("PUT")
+	r.HandleFunc("/requests", authMiddleware(requests.GETPAGE)).Methods("GET")
+
+	r.HandleFunc("/admin/users", authMiddleware(
+		endpoints.GetPage(auth.User{}, res.DB),
+	)).Methods("GET")
+
+	r.HandleFunc("/role", authMiddleware(
+		func(w http.ResponseWriter, r *http.Request) error {
+			claims := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)
+			if user, err := auth.GetUser(claims); err != nil {
+				return err
+			} else if _, err := w.Write([]byte(user.Role)); err != nil {
+				return CodedError{
+					Message:  "error writing response",
+					HTTPCode: 500,
+					Err:      err,
+				}
+			}
+			return nil
+		},
+	)).Methods("GET")
+
+	// r.HandleFunc("/users", authMiddleware()).Methods("GET")
+
+	// r.HandleFunc("/admin/config", authMiddleware(config.GET)).Methods("GET")
+	// r.HandleFunc("/admin/configs", authMiddleware(config.GETPAGE)).Methods("GET")
+	// r.HandleFunc("/admin/configs", authMiddleware(config.PUT)).Methods("PUT")
+}
+
+// var myHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 	user := context.Get(r, "user")
+// 	fmt.Fprintf(w, "This is an authenticated request")
+// 	fmt.Fprintf(w, "Claim content:\n")
+// 	token
+// 	for k, v := range user.(*jwt.Token).Claims {
+// 		fmt.Fprintf(w, "%s :\t%#v\n", k, v)
+// 	}
+// })
+
+func BuildEnforcer() {
+	var err error
+	res.Enforcer, err = casbin.NewEnforcerSafe("./auth_model.conf", "./policy.csv")
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Fatal("Unable to build enforcer")
+	}
 }
 
 func getPemCert(token *jwt.Token) (string, error) {
-	log.Info("getPermCert")
+	log.Debug("getPermCert")
 	cert := ""
-	resp, err := http.Get("https://magiadmen.auth0.com/.well-known/jwks.json")
+	resp, err := http.Get("https://jefall.auth0.com/.well-known/jwks.json")
 
 	if err != nil {
 		return cert, err
@@ -231,19 +390,6 @@ func getPemCert(token *jwt.Token) (string, error) {
 	return cert, nil
 }
 
-// func ReadPassword() (string, error) {
-// 	fmt.Print("Password: ")
-// 	password, err := terminal.ReadPassword(int(syscall.Stdin))
-// 	fmt.Print("\n")
-// 	if err != nil {
-// 		log.WithFields(log.Fields{
-// 			"Error": err,
-// 		}).Error("Error reading password")
-// 		return "", err
-// 	}
-// 	return string(password), nil
-// }
-
 func ConnectDatabase() error {
 	db, err := gorm.Open(
 		viper.GetString("database.config.driver"),
@@ -267,3 +413,27 @@ func ConnectDatabase() error {
 
 	return nil
 }
+
+// func BuildSessionManager() {
+// 	res.Session = &session.Manager{
+// 		Store: sessions.NewCookieStore([]byte(viper.GetString("session.private"))),
+// 	}
+// }
+
+// map[
+// 	"updated_at":"2018-09-25T00:01:46.242Z",
+// 	"sub":"google-oauth2|111259359070610605241"
+// 	"exp":"1.537869706e+09",
+// 	"gender":"male"
+// 	"locale":"en",
+// 	"picture":"https://lh4.googleusercontent.com/-XIEcaF6vX1M/AAAAAAAAAAI/AAAAAAAAAAA/AAN31DUCBV7es-4GmdcZHaF6gJ5iHwpQaw/mo/photo.jpg"
+// 	"iss":"https://jefall.auth0.com/"
+// 	"iat":"1.537833706e+09"
+// 	"nonce":"yf2VnMd_xVdr-rdTnJfmvjuyMtFzcnsx"
+// 	"family_name":"Something"
+// 	"nickname":"jiffall"
+// 	"at_hash":"VK1ZUkv36JUJNXRvmdiBPg"
+// 	"name":"Something Something"
+// 	"aud":"cJvGJ3Mpan5HRFFGBBtfg6ch4E2cu10f"
+// 	"given_name":"Something"
+// ]

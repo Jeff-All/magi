@@ -6,14 +6,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/Jeff-All/magi/actions/request"
 	"github.com/Jeff-All/magi/errors"
-	models "github.com/Jeff-All/magi/models"
+	"github.com/Jeff-All/magi/models"
 	util "github.com/Jeff-All/magi/util"
+	"github.com/Jeff-All/magi/validation"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+
+	"gopkg.in/go-playground/validator.v9"
 )
+
+var validate = validator.New()
 
 func PUT(
 	w http.ResponseWriter,
@@ -28,36 +32,42 @@ func PUT(
 			Err:      err,
 		}
 	}
-	logrus.WithFields(logrus.Fields{
-		"body": string(body),
-	}).Debug("Requests:PUT")
 	var requests []*models.Request
 	if err = util.Json.Unmarshal(body, &requests); err != nil {
 		return errors.CodedError{
 			Message:  "Unable to unmarshal request",
 			HTTPCode: http.StatusInternalServerError,
 			Err:      err,
-			Fields: log.Fields{
-				"body": string(body),
-			},
 		}
 	}
 	type ErrorResponse struct {
-		Message string
-		Sheet   string
-		Row     int
+		Error string
+		Sheet string
+		Row   int
 	}
-	log.WithFields(log.Fields{
-		"requests": requests,
-	}).Debug("request")
 	response := make([]interface{}, len(requests))
 	for i, val := range requests {
-		if err = models.Requests.Create(val); err != nil {
-			log.Error("Error create request")
+		if err = validate.Struct(validation.Request(*val)); err != nil {
+			log.WithFields(log.Fields{
+				"error": err.Error(),
+				"sheet": val.Sheet,
+				"row":   val.Row,
+			}).Error("Error validating request")
 			response[i] = ErrorResponse{
-				Message: err.Error(),
-				Sheet:   val.Sheet,
-				Row:     val.Row,
+				Error: err.Error(),
+				Sheet: val.Sheet,
+				Row:   val.Row,
+			}
+		} else if err = request.Create(val); err != nil {
+			log.WithFields(log.Fields{
+				"error": err.Error(),
+				"sheet": val.Sheet,
+				"row":   val.Row,
+			}).Error("Error create request")
+			response[i] = ErrorResponse{
+				Error: err.Error(),
+				Sheet: val.Sheet,
+				Row:   val.Row,
 			}
 		} else {
 			response[i] = val
@@ -102,7 +112,7 @@ func GETPAGE(
 		offset = 0
 	}
 
-	requests, err := models.Requests.Page(limit, offset)
+	requests, err := request.Page(limit, offset)
 	if err != nil {
 		return errors.CodedError{
 			Message:  "endpoints.request.GET(): Error while querying request",
@@ -151,7 +161,7 @@ func GET(
 			HTTPCode: http.StatusInternalServerError,
 		}
 	}
-	request, err := models.Requests.Get(id)
+	request, err := request.Get(id)
 	if err != nil {
 		return errors.CodedError{
 			Message:  "endpoints.request.GET(): Error while querying request",
@@ -202,7 +212,7 @@ func DELETE(
 		}
 	}
 
-	err := models.Requests.Delete([]interface{}{strings.Split(ids, ",")}...)
+	err := request.Delete([]interface{}{strings.Split(ids, ",")}...)
 	if err != nil {
 		return errors.CodedError{
 			Message:  "endpoints.request.DELETE(): Error while querying request",
@@ -261,7 +271,7 @@ func PUTGift(
 			Err:      err,
 		}
 	}
-	if err = models.Requests.CreateGift(uint64(id), gifts); err != nil {
+	if err = request.CreateGift(uint64(id), gifts); err != nil {
 		return errors.CodedError{
 			Message:  "endpoints/request.PUTGift()",
 			HTTPCode: http.StatusInternalServerError,
@@ -291,5 +301,4 @@ func PUTGift(
 	}
 	w.WriteHeader(http.StatusCreated)
 	return nil
-
 }

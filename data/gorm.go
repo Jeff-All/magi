@@ -34,13 +34,15 @@ func (g *Gorm) AutoMigrate(data ...interface{}) Data {
 	return &Gorm{DB: db}
 }
 
+func (g *Gorm) Order(value interface{}) Data {
+	db := g.DB.Order(value)
+	return &Gorm{DB: db}
+}
+
 func (g *Gorm) Where(
 	statement interface{},
 	value ...interface{},
 ) Data {
-	// g.DB = g.DB.Where(statement, value...)
-	// return g
-
 	db := g.DB.Where(statement, value...)
 	return &Gorm{DB: db}
 }

@@ -37,6 +37,11 @@ func (m *Mock) AutoMigrate(value ...interface{}) Data {
 	return m
 }
 
+func (m *Mock) Order(value interface{}) Data {
+	m.Mock.Call("Order", value)
+	return m
+}
+
 func (m *Mock) Where(
 	statement interface{},
 	value ...interface{},

@@ -2,10 +2,15 @@ package endpoints
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
+	"text/scanner"
 
 	"github.com/Jeff-All/magi/data"
 	"github.com/Jeff-All/magi/errors"
@@ -16,7 +21,151 @@ import (
 	"gopkg.in/go-playground/validator.v9"
 )
 
-func GETPage(
+func ParseWhereParam(model interface{}, param string) (string, []string, error) {
+
+	var s scanner.Scanner
+	s.Init(strings.NewReader(param))
+	s.Filename = "example"
+	queryBuilder := &strings.Builder{}
+	arguments, err := parseStatement(&s, queryBuilder, reflect.TypeOf(model))
+	if err != nil {
+		return "", nil, err
+	}
+	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+		switch s.TokenText() {
+		case "+":
+			queryBuilder.Write([]byte(" AND "))
+			break
+		case "|":
+			queryBuilder.Write([]byte(" OR "))
+			break
+		}
+		if args, err := parseStatement(&s, queryBuilder, reflect.TypeOf(model)); err != nil {
+			return "", nil, err
+		} else {
+			arguments = append(arguments, args...)
+		}
+	}
+	return queryBuilder.String(), arguments, nil
+}
+
+func parseStatement(
+	s *scanner.Scanner,
+	w io.Writer,
+	typ reflect.Type,
+) ([]string, error) {
+	if err := parseColumn(s, w, typ); err != nil {
+		return nil, err
+	}
+	if arguments, err := parseOperator(s, w); err != nil {
+		return nil, err
+	} else {
+		return arguments, nil
+	}
+}
+
+func parseArgument(
+	s *scanner.Scanner,
+) string {
+	toReturn := ""
+	for tok := s.Peek(); tok != scanner.EOF; tok = s.Peek() {
+		switch tok {
+		case '+':
+		case '|':
+		case scanner.EOF:
+			return toReturn
+		}
+		tok = s.Scan()
+		toReturn += s.TokenText()
+	}
+	return toReturn
+}
+
+func parseArray(
+	s *scanner.Scanner,
+) ([]string, error) {
+	toReturn := []string{}
+	current := ""
+	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+		log.Printf("parseArray: %v", s.TokenText())
+		switch tok {
+		case ']':
+			return append(toReturn, current), nil
+		case ',':
+			toReturn = append(toReturn, current)
+			current = ""
+		default:
+			current += s.TokenText()
+		}
+	}
+	return nil, fmt.Errorf("parseArray: unexpected end of file")
+}
+
+func parseColumn(
+	s *scanner.Scanner,
+	w io.Writer,
+	typ reflect.Type,
+) error {
+	if tok := s.Scan(); tok != scanner.EOF {
+		if _, ok := typ.FieldByName(s.TokenText()); !ok {
+			return fmt.Errorf("%s is not a valid column", s.TokenText())
+		}
+		_, err := w.Write([]byte(s.TokenText()))
+		return err
+	}
+
+	return fmt.Errorf("parseColumn: unexpected end of file")
+}
+
+func parseOperator(s *scanner.Scanner, w io.Writer) ([]string, error) {
+	not := false
+	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+		switch tok {
+		case '!':
+			log.Println("Not")
+			if not {
+				return nil, fmt.Errorf("unexpected character '!'")
+			}
+			switch s.Peek() {
+			case '=':
+				w.Write([]byte("!"))
+				break
+			case '%':
+				fallthrough
+			case '[':
+				w.Write([]byte(" NOT"))
+				break
+			default:
+				return nil, fmt.Errorf("unexpected character")
+			}
+			not = true
+			break
+		case '=':
+			w.Write([]byte("=?"))
+			return []string{parseArgument(s)}, nil
+		case '%':
+			w.Write([]byte(" LIKE ?"))
+			return []string{"%" + parseArgument(s)}, nil
+		case '[':
+			w.Write([]byte(" IN(?"))
+			if arguments, err := parseArray(s); err != nil {
+				return nil, err
+			} else {
+				if len(arguments) == 0 {
+					return nil, fmt.Errorf("arrays must have a value")
+				}
+				w.Write([]byte(strings.Repeat(",?", len(arguments)-1)))
+				w.Write([]byte(")"))
+				return arguments, nil
+			}
+		default:
+			return nil, fmt.Errorf("parseOperator: unexpected character")
+		}
+	}
+	return nil, fmt.Errorf("parseOperator: unexpected end of file")
+}
+
+func GetPage(
 	model interface{},
 	DB data.Data,
 	preload ...string,
@@ -31,8 +180,13 @@ func GETPage(
 	) error {
 		params := r.URL.Query()
 
-		var limit int
+		var order string
 		var err error
+		if order = params.Get("order"); err != nil {
+			order = ""
+		}
+
+		var limit int
 		if limit, err = strconv.Atoi(params.Get("limit")); err != nil || limit == 0 {
 			limit = 20
 		}
@@ -51,6 +205,9 @@ func GETPage(
 		for _, cur := range preload {
 			db = db.Preload(cur)
 		}
+		if order != "" {
+			db = db.Order(order)
+		}
 		if err := db.Find(array.Interface()).GetError(); err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return errors.CodedError{
@@ -65,7 +222,7 @@ func GETPage(
 				Err:      err,
 			}
 		}
-		logrus.Debug(array)
+		// logrus.Debug(array)
 		responseBody, err := json.Marshal(array.Interface())
 		if err != nil {
 			return errors.CodedError{
