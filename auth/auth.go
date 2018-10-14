@@ -5,7 +5,7 @@ import (
 )
 
 func Init() error {
-	err := DB.AutoMigrate(&User{}, &Role{}).GetError()
+	err := DB.AutoMigrate(&User{}, &Role{}, &User{}).GetError()
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err.Error(),

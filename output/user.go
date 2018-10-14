@@ -13,7 +13,9 @@ type User struct {
 	GivenName  string
 	FamilyName string
 
-	Active   bool
+	Active bool
+	Locked bool
+
 	Email    string
 	SubClaim string `json:"-"`
 

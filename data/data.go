@@ -11,8 +11,11 @@ type Data interface {
 	Last(interface{}, ...interface{}) Data
 	Save(interface{}) Data
 	Delete(interface{}) Data
+	Updates(interface{}) Data
 	Model(interface{}) Data
 	Find(interface{}) Data
+	Select(interface{}) Data
+	Joins(string) Data
 	Preload(string, ...interface{}) Data
 	Related(interface{}) Data
 	// Append(interface{}) Data

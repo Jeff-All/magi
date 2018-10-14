@@ -8,7 +8,6 @@ type Request struct {
 	Sheet string `gorm:"-"`
 	Row   int    `gorm:"-"`
 
-	Batch    string `gorm:"unique_index:batch_id"`
 	FamilyID string `gorm:"unique_index:batch_id"`
 	Response string `gorm:"unique_index:batch_id"`
 

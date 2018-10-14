@@ -25,7 +25,9 @@ type User struct {
 	GivenName  string
 	FamilyName string
 
-	Active   bool   `gorm:"default:false"`
+	Active bool `gorm:"default:false"`
+	Locked bool `gorm:"default:false"`
+
 	Email    string `gorm:"type:varchar(254)"`
 	SubClaim string `gorm:"unique_index:varchar(254)`
 

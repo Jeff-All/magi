@@ -2,4 +2,4 @@ p, root, *, *
 
 p, admin, *, *
 
-p, *, /role*, *
+p, *, /user/role*, *

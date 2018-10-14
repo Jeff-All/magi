@@ -73,6 +73,11 @@ func (g *Gorm) Save(value interface{}) Data {
 	return &Gorm{DB: db}
 }
 
+func (g *Gorm) Updates(value interface{}) Data {
+	db := g.DB.Updates(value)
+	return &Gorm{DB: db}
+}
+
 func (g *Gorm) Model(value interface{}) Data {
 	db := g.DB.Model(value)
 	return &Gorm{DB: db}
@@ -80,6 +85,16 @@ func (g *Gorm) Model(value interface{}) Data {
 
 func (g *Gorm) Find(value interface{}) Data {
 	db := g.DB.Find(value)
+	return &Gorm{DB: db}
+}
+
+func (g *Gorm) Joins(value string) Data {
+	db := g.DB.Joins(value)
+	return &Gorm{DB: db}
+}
+
+func (g *Gorm) Select(value interface{}) Data {
+	db := g.DB.Select(value)
 	return &Gorm{DB: db}
 }
 

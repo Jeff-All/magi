@@ -14,6 +14,7 @@ import (
 
 	"github.com/Jeff-All/magi/data"
 	"github.com/Jeff-All/magi/errors"
+	"github.com/Jeff-All/magi/input"
 	"github.com/Jeff-All/magi/util"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
@@ -21,8 +22,10 @@ import (
 	"gopkg.in/go-playground/validator.v9"
 )
 
-func ParseWhereParam(model interface{}, param string) (string, []string, error) {
-
+func ParseWhereParam(model interface{}, param string) (string, []interface{}, error) {
+	if param == "" {
+		return "", nil, nil
+	}
 	var s scanner.Scanner
 	s.Init(strings.NewReader(param))
 	s.Filename = "example"
@@ -33,7 +36,7 @@ func ParseWhereParam(model interface{}, param string) (string, []string, error) 
 	}
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		switch s.TokenText() {
-		case "+":
+		case ":":
 			queryBuilder.Write([]byte(" AND "))
 			break
 		case "|":
@@ -53,7 +56,7 @@ func parseStatement(
 	s *scanner.Scanner,
 	w io.Writer,
 	typ reflect.Type,
-) ([]string, error) {
+) ([]interface{}, error) {
 	if err := parseColumn(s, w, typ); err != nil {
 		return nil, err
 	}
@@ -66,12 +69,14 @@ func parseStatement(
 
 func parseArgument(
 	s *scanner.Scanner,
-) string {
+) interface{} {
 	toReturn := ""
 	for tok := s.Peek(); tok != scanner.EOF; tok = s.Peek() {
 		switch tok {
-		case '+':
+		case ':':
+			fallthrough
 		case '|':
+			fallthrough
 		case scanner.EOF:
 			return toReturn
 		}
@@ -83,8 +88,8 @@ func parseArgument(
 
 func parseArray(
 	s *scanner.Scanner,
-) ([]string, error) {
-	toReturn := []string{}
+) ([]interface{}, error) {
+	toReturn := []interface{}{}
 	current := ""
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		log.Printf("parseArray: %v", s.TokenText())
@@ -107,9 +112,9 @@ func parseColumn(
 	typ reflect.Type,
 ) error {
 	if tok := s.Scan(); tok != scanner.EOF {
-		if _, ok := typ.FieldByName(s.TokenText()); !ok {
-			return fmt.Errorf("%s is not a valid column", s.TokenText())
-		}
+		// if _, ok := typ.FieldByName(s.TokenText()); !ok {
+		// 	return fmt.Errorf("%s is not a valid column", s.TokenText())
+		// }
 		_, err := w.Write([]byte(s.TokenText()))
 		return err
 	}
@@ -117,7 +122,13 @@ func parseColumn(
 	return fmt.Errorf("parseColumn: unexpected end of file")
 }
 
-func parseOperator(s *scanner.Scanner, w io.Writer) ([]string, error) {
+func parseOperator(
+	s *scanner.Scanner,
+	w io.Writer,
+) (
+	[]interface{},
+	error,
+) {
 	not := false
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		switch tok {
@@ -142,10 +153,10 @@ func parseOperator(s *scanner.Scanner, w io.Writer) ([]string, error) {
 			break
 		case '=':
 			w.Write([]byte("=?"))
-			return []string{parseArgument(s)}, nil
+			return []interface{}{parseArgument(s)}, nil
 		case '%':
 			w.Write([]byte(" LIKE ?"))
-			return []string{"%" + parseArgument(s)}, nil
+			return []interface{}{fmt.Sprintf("%%%s", parseArgument(s))}, nil
 		case '[':
 			w.Write([]byte(" IN(?"))
 			if arguments, err := parseArray(s); err != nil {
@@ -165,6 +176,94 @@ func parseOperator(s *scanner.Scanner, w io.Writer) ([]string, error) {
 	return nil, fmt.Errorf("parseOperator: unexpected end of file")
 }
 
+func PopulatePrimaryKey(
+	obj interface{},
+) {
+
+}
+
+func Patch(
+	model interface{},
+	filter interface{},
+	DB data.Data,
+) func(
+	w http.ResponseWriter,
+	r *http.Request,
+) error {
+	modelType := reflect.TypeOf(model)
+	filterType := reflect.TypeOf(filter)
+	validate := validator.New()
+	validate.RegisterValidation("true", func(fieldLevel validator.FieldLevel) bool {
+		logrus.Debug("Validation:true")
+		return fieldLevel.Field().Bool()
+	})
+	return func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) error {
+		params := r.URL.Query()
+		if params.Get("where") == "" {
+			return errors.CodedError{
+				Message:  "where query param is required",
+				HTTPCode: 422,
+			}
+		}
+		body, err := util.IOUtil.ReadAll(r.Body)
+		if err != nil {
+			return errors.CodedError{
+				Message:  "unable to read the body",
+				HTTPCode: http.StatusInternalServerError,
+				Err:      err,
+			}
+		}
+		filterValue := reflect.New(filterType)
+		if err = util.Json.Unmarshal(body, filterValue.Interface()); err != nil {
+			return errors.CodedError{
+				Message:  "unable to unmarshal",
+				HTTPCode: http.StatusInternalServerError,
+				Err:      err,
+				Fields: logrus.Fields{
+					"body": string(body),
+				},
+			}
+		}
+		if err = input.ValidateObject(validate, filterValue.Elem().Interface()); err != nil {
+			return errors.CodedError{
+				Message:  "failed validation",
+				HTTPCode: 422,
+				Err:      err,
+			}
+		}
+
+		where, whereAttributes, err := ParseWhereParam(model, params.Get("where"))
+		if err != nil {
+			return errors.CodedError{
+				Message:  "error while parsing where param",
+				HTTPCode: 500,
+				Err:      err,
+			}
+		}
+
+		modelValue := reflect.New(modelType)
+		if err := DB.Model(modelValue.Interface()).Where(where, whereAttributes...).Updates(input.GetObjectMap(filterValue.Elem().Interface())).GetError(); err != nil {
+			return errors.CodedError{
+				Message:  "unable to update row",
+				HTTPCode: 500,
+				Err:      err,
+			}
+		}
+		stringVal, err := json.Marshal(modelValue.Interface())
+		logrus.WithFields(logrus.Fields{
+			"jsonString": string(stringVal),
+			"err":        err,
+		}).Debug()
+
+		w.Write([]byte("{}"))
+		w.WriteHeader(200)
+		return nil
+	}
+}
+
 func GetPage(
 	model interface{},
 	DB data.Data,
@@ -179,12 +278,21 @@ func GetPage(
 		r *http.Request,
 	) error {
 		params := r.URL.Query()
+		order := params.Get("order")
 
-		var order string
-		var err error
-		if order = params.Get("order"); err != nil {
-			order = ""
+		where, whereAttributes, err := ParseWhereParam(model, params.Get("where"))
+		if err != nil {
+			return errors.CodedError{
+				Message:  "error while parsing where param",
+				HTTPCode: 500,
+				Err:      err,
+			}
 		}
+		logrus.WithFields(logrus.Fields{
+			"where<param>":    params.Get("where"),
+			"where":           where,
+			"whereAttributes": whereAttributes,
+		}).Debugf("GetPage<%s>", modelType.Name())
 
 		var limit int
 		if limit, err = strconv.Atoi(params.Get("limit")); err != nil || limit == 0 {
@@ -208,6 +316,9 @@ func GetPage(
 		if order != "" {
 			db = db.Order(order)
 		}
+		if where != "" {
+			db = db.Where(where, whereAttributes...)
+		}
 		if err := db.Find(array.Interface()).GetError(); err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return errors.CodedError{
@@ -222,7 +333,6 @@ func GetPage(
 				Err:      err,
 			}
 		}
-		// logrus.Debug(array)
 		responseBody, err := json.Marshal(array.Interface())
 		if err != nil {
 			return errors.CodedError{

@@ -10,7 +10,6 @@ type Request struct {
 	Sheet string
 	Row   int
 
-	Batch    string `validate:"min=1,max=255"`
 	FamilyID string `validate:"min=1,max=255"`
 	Response string `validate:"min=1,max=255"`
 

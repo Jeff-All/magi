@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/casbin/casbin"
@@ -16,6 +18,8 @@ import (
 	"github.com/Jeff-All/magi/auth"
 	"github.com/Jeff-All/magi/data"
 	"github.com/Jeff-All/magi/endpoints"
+	"github.com/Jeff-All/magi/input"
+	"github.com/Jeff-All/magi/models"
 
 	"github.com/Jeff-All/magi/middleware"
 	res "github.com/Jeff-All/magi/resources"
@@ -64,6 +68,11 @@ func main() {
 			Action:  Init,
 			Flags:   append(app.Flags, cli.BoolFlag{Name: "overwrite, ow"}),
 		},
+		{
+			Name:    "migrate",
+			Aliases: []string{"m"},
+			Action:  Migrate,
+		},
 	}
 
 	app.Action = Run
@@ -73,6 +82,15 @@ func main() {
 			"error": err,
 		}).Fatal("unable to launch")
 	}
+}
+
+func Migrate(c *cli.Context) error {
+	Common(c)
+	ConnectDatabase()
+	defer res.DB.Close()
+	actions.DB = res.DB
+	actions.AutoMigrate()
+	return nil
 }
 
 func Init(c *cli.Context) error {
@@ -114,7 +132,7 @@ func Run(context *cli.Context) error {
 	corsConfig := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"},
 		AllowCredentials: true,
-		AllowedMethods:   []string{"PUT", "GET"},
+		AllowedMethods:   []string{"PUT", "GET", "PATCH"},
 		AllowedHeaders:   []string{"Authorization"},
 		Debug:            true,
 	})
@@ -293,15 +311,23 @@ func ConfigureRoutes(
 		return func(w http.ResponseWriter, r *http.Request) {
 			log.WithFields(log.Fields{
 				"headers": r.Header,
-			}).Debug("logging")
-
-			next.ServeHTTP(w, r)
+			}).Debug("logging:before")
+			var builder strings.Builder
+			writer := io.MultiWriter(w, &builder)
+			responseWriter := ResponseWriter{
+				ResponseWriter: w,
+				Writer:         writer,
+			}
+			next.ServeHTTP(&responseWriter, r)
+			log.WithFields(log.Fields{
+				"headers": r.Header,
+				"body":    builder.String(),
+			}).Debug("logging:after")
 		}
 	}
 
 	authMiddleware := func(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			// logger(w, r)
 			jwtMiddleware.HandlerWithNext(w, r,
 				logger(
 					middleware.HandleError(
@@ -310,13 +336,24 @@ func ConfigureRoutes(
 	}
 
 	r.HandleFunc("/requests", authMiddleware(requests.PUT)).Methods("PUT")
-	r.HandleFunc("/requests", authMiddleware(requests.GETPAGE)).Methods("GET")
+	r.HandleFunc("/requests", authMiddleware(
+		endpoints.GetPage(models.Request{}, res.DB),
+	)).Methods("GET")
+	r.HandleFunc("/gifts", authMiddleware(
+		endpoints.GetPage(models.Gift{}, res.DB),
+	)).Methods("GET")
 
 	r.HandleFunc("/admin/users", authMiddleware(
 		endpoints.GetPage(auth.User{}, res.DB),
 	)).Methods("GET")
+	r.HandleFunc("/admin/users", authMiddleware(
+		endpoints.Patch(auth.User{}, input.User{}, res.DB),
+	)).Methods("PATCH")
 
-	r.HandleFunc("/role", authMiddleware(
+	r.HandleFunc("/roles", authMiddleware(
+		endpoints.GetPage(auth.Role{}, res.DB),
+	)).Methods("GET")
+	r.HandleFunc("/user/role", authMiddleware(
 		func(w http.ResponseWriter, r *http.Request) error {
 			claims := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)
 			if user, err := auth.GetUser(claims); err != nil {
@@ -331,23 +368,16 @@ func ConfigureRoutes(
 			return nil
 		},
 	)).Methods("GET")
-
-	// r.HandleFunc("/users", authMiddleware()).Methods("GET")
-
-	// r.HandleFunc("/admin/config", authMiddleware(config.GET)).Methods("GET")
-	// r.HandleFunc("/admin/configs", authMiddleware(config.GETPAGE)).Methods("GET")
-	// r.HandleFunc("/admin/configs", authMiddleware(config.PUT)).Methods("PUT")
 }
 
-// var myHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 	user := context.Get(r, "user")
-// 	fmt.Fprintf(w, "This is an authenticated request")
-// 	fmt.Fprintf(w, "Claim content:\n")
-// 	token
-// 	for k, v := range user.(*jwt.Token).Claims {
-// 		fmt.Fprintf(w, "%s :\t%#v\n", k, v)
-// 	}
-// })
+type ResponseWriter struct {
+	http.ResponseWriter
+	Writer io.Writer
+}
+
+func (rw *ResponseWriter) Write(data []byte) (int, error) {
+	return rw.Writer.Write(data)
+}
 
 func BuildEnforcer() {
 	var err error

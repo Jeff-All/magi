@@ -76,6 +76,11 @@ func (m *Mock) Save(value interface{}) Data {
 	return m
 }
 
+func (m *Mock) Updates(value interface{}) Data {
+	m.Mock.Call("Updates", value)
+	return m
+}
+
 func (m *Mock) Model(value interface{}) Data {
 	m.Mock.Call("Model", value)
 	return m
@@ -83,6 +88,16 @@ func (m *Mock) Model(value interface{}) Data {
 
 func (m *Mock) Find(value interface{}) Data {
 	m.Mock.Call("Find", value)
+	return m
+}
+
+func (m *Mock) Select(value interface{}) Data {
+	m.Mock.Call("Select", value)
+	return m
+}
+
+func (m *Mock) Joins(value string) Data {
+	m.Mock.Call("Joins", value)
 	return m
 }
 
